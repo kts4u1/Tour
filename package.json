@@ -1,0 +1,21 @@
+{
+  "name": "tour-nearby",
+  "version": "0.1.0",
+  "private": true,
+  "description": "내 주변 관광지·축제·행사를 거리별로 찾고, 전국 행사 일정을 월별로 보여주는 앱",
+  "type": "module",
+  "main": "server/index.js",
+  "engines": {
+    "node": ">=20.12"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "demo": "DEMO_MODE=1 node server/index.js",
+    "test": "node --test \"test/**/*.test.js\""
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "leaflet": "^1.9.4"
+  }
+}

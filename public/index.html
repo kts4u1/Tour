@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>어디갈까 · 내 주변 관광지·축제</title>
+  <meta name="description" content="내 주변 10km~100km 안의 관광지와 축제·행사, 그리고 전국 이달의 행사 일정을 한눈에.">
+  <meta name="theme-color" content="#0f766e">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/js/app.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-inner">
+      <a class="brand" href="#nearby" aria-label="어디갈까 홈">
+        <img src="/icons/icon.svg" alt="" width="30" height="30">
+        <span>어디갈까</span>
+      </a>
+      <button type="button" class="loc-chip" id="locButton" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.6"/></svg>
+        <span id="locLabel">위치 확인 중…</span>
+        <svg class="caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="화면 선택">
+      <button type="button" role="tab" id="tab-nearby" data-tab="nearby" aria-controls="view-nearby" aria-selected="true">내 주변</button>
+      <button type="button" role="tab" id="tab-monthly" data-tab="monthly" aria-controls="view-monthly" aria-selected="false">이달의 행사</button>
+    </nav>
+  </header>
+
+  <div class="banner" id="demoBanner" hidden>
+    <strong>데모 모드</strong> 예시 데이터로 화면을 보여주고 있어요. 행사 이름과 날짜는 실제 일정이 아닙니다.
+  </div>
+
+  <main class="container">
+    <!-- 내 주변 -->
+    <section class="view" id="view-nearby" role="tabpanel" aria-labelledby="tab-nearby">
+      <div class="panel filters">
+        <div class="filter-label">반경</div>
+        <div class="radius-group" id="radiusGroup" role="group" aria-label="반경 선택"></div>
+        <div class="chip-row" id="categoryGroup" role="group" aria-label="분류"></div>
+        <div class="chip-row" id="whenGroup" role="group" aria-label="행사 기간"></div>
+        <div class="toolbar">
+          <label class="select">
+            <span class="sr-only">정렬</span>
+            <select id="sortSelect"></select>
+          </label>
+          <div class="segmented" id="nearbyViewToggle" role="group" aria-label="보기 방식">
+            <button type="button" data-view="list" aria-pressed="true">목록</button>
+            <button type="button" data-view="map" aria-pressed="false">지도</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="summary" id="nearbySummary" aria-live="polite"></div>
+      <div class="notice" id="nearbyNotice" hidden></div>
+
+      <div class="card-list" id="nearbyList"></div>
+      <div class="map-wrap" id="nearbyMapWrap" hidden>
+        <div class="map" id="nearbyMap"></div>
+        <p class="map-hint">지도를 누르면 그 위치를 기준으로 다시 찾을 수 있어요.</p>
+      </div>
+      <button type="button" class="more-button" id="moreButton" hidden>더 보기</button>
+    </section>
+
+    <!-- 이달의 행사 -->
+    <section class="view" id="view-monthly" role="tabpanel" aria-labelledby="tab-monthly" hidden>
+      <div class="month-nav">
+        <button type="button" class="icon-button" id="prevMonth" aria-label="이전 달">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <h2 id="monthTitle">이달의 행사</h2>
+        <button type="button" class="icon-button" id="nextMonth" aria-label="다음 달">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <button type="button" class="text-button" id="thisMonth">이번 달</button>
+      </div>
+
+      <div class="summary-card" id="monthSummary" aria-live="polite"></div>
+
+      <div class="panel filters">
+        <div class="chip-row" id="regionGroup" role="group" aria-label="지역"></div>
+        <div class="chip-row" id="monthRadiusGroup" role="group" aria-label="내 위치에서 거리"></div>
+        <div class="toolbar">
+          <label class="search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <span class="sr-only">행사 검색</span>
+            <input type="search" id="monthSearch" placeholder="행사 이름·장소 검색" autocomplete="off">
+          </label>
+          <label class="select">
+            <span class="sr-only">진행 상태</span>
+            <select id="statusSelect">
+              <option value="all">전체 상태</option>
+              <option value="ongoing">진행 중</option>
+              <option value="upcoming">예정</option>
+              <option value="ended">종료</option>
+            </select>
+          </label>
+        </div>
+        <div class="segmented wide" id="monthViewToggle" role="group" aria-label="보기 방식">
+          <button type="button" data-view="region" aria-pressed="true">지역별</button>
+          <button type="button" data-view="date" aria-pressed="false">날짜순</button>
+          <button type="button" data-view="timeline" aria-pressed="false">일정표</button>
+        </div>
+      </div>
+
+      <div id="monthContent"></div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    관광정보 제공: 한국관광공사 TourAPI · 지도: © OpenStreetMap 기여자
+  </footer>
+
+  <dialog class="sheet" id="locationDialog" aria-labelledby="locationDialogTitle">
+    <div class="sheet-head">
+      <h2 id="locationDialogTitle">기준 위치</h2>
+      <button type="button" class="icon-button" data-close aria-label="닫기">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body">
+      <button type="button" class="primary-button" id="useGpsButton">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/><circle cx="12" cy="12" r="7"/></svg>
+        현재 위치 사용
+      </button>
+      <p class="hint" id="gpsHint" role="status"></p>
+      <h3 class="sheet-subtitle">도시 선택</h3>
+      <div class="city-grid" id="cityGrid"></div>
+      <p class="hint">내 주변 › 지도 보기에서 지도를 눌러 원하는 곳을 기준으로 정할 수도 있어요.</p>
+    </div>
+  </dialog>
+
+  <dialog class="sheet detail-sheet" id="detailDialog" aria-labelledby="detailTitle">
+    <button type="button" class="icon-button floating-close" data-close aria-label="닫기">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+    <div id="detailBody"></div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
