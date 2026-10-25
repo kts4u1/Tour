@@ -22,7 +22,8 @@ const els = {
 };
 
 const prefs = { view: 'region', radius: 0, ...storage.get('monthlyPrefs', {}) };
-const filters = { region: 'all', status: 'all', q: '' };
+// 상태 기본값: 진행 중 + 예정 (이미 끝난 행사는 숨김)
+const filters = { region: 'all', status: 'active', q: '' };
 const cache = new Map();
 let ym = null;
 let data = null;
@@ -71,13 +72,49 @@ function renderRadiusChips() {
   setPressed(els.radius, 'data-radius', prefs.radius);
 }
 
+/** 지난달 보기에서는 모든 행사가 끝났으므로 "진행·예정"을 "전체"로 봅니다. */
+function currentStatus() {
+  return filters.status === 'active' && tense() < 0 ? 'all' : filters.status;
+}
+
+function matchStatus(item, status = currentStatus()) {
+  if (status === 'all') return true;
+  if (status === 'active') return item.status !== 'ended';
+  return item.status === status;
+}
+
+function syncStatusControls() {
+  const status = currentStatus();
+  els.status.value = status;
+  for (const btn of els.summary.querySelectorAll('[data-status]')) {
+    btn.setAttribute('aria-pressed', String(btn.dataset.status === status));
+  }
+}
+
+function setStatus(status) {
+  filters.status = status;
+  renderRegionChips();
+  syncStatusControls();
+  renderContent();
+}
+
+/** 지역 칩: 지금 고른 상태(진행 중/예정 등)에 맞는 행사 수 */
 function renderRegionChips() {
-  const chips = [`<button type="button" class="chip" data-region="all" aria-pressed="false">전국 <span class="count">${data.total}</span></button>`];
-  for (const r of data.regions) {
-    chips.push(`<button type="button" class="chip" data-region="${escapeHtml(r.name)}" aria-pressed="false">${escapeHtml(r.name)} <span class="count">${r.count}</span></button>`);
+  const counts = new Map();
+  let total = 0;
+  for (const item of data.items) {
+    if (!matchStatus(item)) continue;
+    total += 1;
+    counts.set(item.region, (counts.get(item.region) || 0) + 1);
+  }
+  const order = data.regions.map((r) => r.name);
+  const chips = [`<button type="button" class="chip" data-region="all" aria-pressed="false">전국 <span class="count">${total}</span></button>`];
+  for (const name of order) {
+    if (!counts.has(name)) continue;
+    chips.push(`<button type="button" class="chip" data-region="${escapeHtml(name)}" aria-pressed="false">${escapeHtml(name)} <span class="count">${counts.get(name)}</span></button>`);
   }
   els.region.innerHTML = chips.join('');
-  if (filters.region !== 'all' && !data.regions.some((r) => r.name === filters.region)) filters.region = 'all';
+  if (filters.region !== 'all' && !counts.has(filters.region)) filters.region = 'all';
   setPressed(els.region, 'data-region', filters.region);
 }
 
@@ -88,18 +125,32 @@ function renderSummary() {
     els.summary.innerHTML = `<p class="headline">${month}월에 등록된 축제·행사가 아직 없어요.</p>`;
     return;
   }
-  const verb = t < 0 ? '열렸어요' : t > 0 ? '열릴 예정이에요' : '열려요';
-  const top = [...regions].sort((a, b) => b.count - a.count);
-  const shown = top.slice(0, 6).map((r) => `${escapeHtml(r.name)} ${r.count}`).join(' · ');
+  // 지난달은 전체, 이번 달·다음 달은 아직 갈 수 있는 행사(진행 중 + 예정)를 기준으로 요약
+  const items = t < 0 ? data.items : data.items.filter((it) => it.status !== 'ended');
+  const counts = new Map();
+  for (const it of items) counts.set(it.region, (counts.get(it.region) || 0) + 1);
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  const shown = top.slice(0, 6).map(([name, n]) => `${escapeHtml(name)} ${n}`).join(' · ');
   const rest = top.length > 6 ? ` 외 ${top.length - 6}곳` : '';
+
+  let headline;
+  if (t < 0) headline = `${month}월에는 전국 <b>${counts.size}개</b> 시·도에서 <b>${total.toLocaleString()}개</b>의 축제·행사가 열렸어요`;
+  else if (!items.length) headline = `${month}월 축제·행사는 모두 끝났어요`;
+  else if (t > 0) headline = `${month}월에는 전국 <b>${counts.size}개</b> 시·도에서 <b>${items.length.toLocaleString()}개</b>의 축제·행사가 열릴 예정이에요`;
+  else headline = `${month}월에 지금 가 볼 수 있는 축제·행사는 전국 <b>${counts.size}개</b> 시·도에서 <b>${items.length.toLocaleString()}개</b>예요`;
+
+  const stat = (key, label, n, extra = '') =>
+    `<button type="button" class="stat${extra}" data-status="${key}" aria-pressed="false">${label}<b>${n}</b></button>`;
   els.summary.innerHTML = `
-    <p class="headline">${month}월에는 전국 <b>${regions.length}개</b> 시·도에서 <b>${total.toLocaleString()}개</b>의 축제·행사가 ${verb}</p>
-    <p class="regions-line">${shown}${rest}</p>
-    <div class="stats">
-      <span class="stat">진행 중<b>${statusCounts.ongoing}</b></span>
-      <span class="stat">예정<b>${statusCounts.upcoming}</b></span>
-      <span class="stat">종료<b>${statusCounts.ended}</b></span>
+    <p class="headline">${headline}</p>
+    ${shown ? `<p class="regions-line">${shown}${rest}</p>` : ''}
+    <div class="stats" role="group" aria-label="진행 상태로 보기">
+      ${t < 0 ? '' : stat('active', '진행·예정', statusCounts.ongoing + statusCounts.upcoming)}
+      ${t < 0 ? '' : stat('ongoing', '진행 중', statusCounts.ongoing)}
+      ${t < 0 ? '' : stat('upcoming', '예정', statusCounts.upcoming)}
+      ${stat(t < 0 ? 'all' : 'ended', '종료', statusCounts.ended, ' muted-stat')}
     </div>`;
+  syncStatusControls();
 }
 
 function filteredItems() {
@@ -109,7 +160,7 @@ function filteredItems() {
   for (const item of data.items) {
     const dist = loc && item.lat != null ? distanceKm(loc.lat, loc.lng, item.lat, item.lng) : null;
     if (filters.region !== 'all' && item.region !== filters.region) continue;
-    if (filters.status !== 'all' && item.status !== filters.status) continue;
+    if (!matchStatus(item)) continue;
     if (prefs.radius && (dist == null || dist > prefs.radius)) continue;
     if (q && !`${item.title} ${item.addr} ${item.region}`.toLowerCase().includes(q)) continue;
     out.push({ ...item, distanceKm: dist });
@@ -232,14 +283,18 @@ function renderContent() {
     return;
   }
   if (!list.length) {
-    els.content.innerHTML = '<div class="empty"><strong>조건에 맞는 행사가 없어요</strong>지역·거리·상태 조건을 바꿔 보세요.</div>';
+    els.content.innerHTML = `<div class="empty"><strong>조건에 맞는 행사가 없어요</strong>지역·거리·상태 조건을 바꿔 보세요.${
+      currentStatus() !== 'all' ? '<br><button type="button" class="text-button" data-status-all>종료된 행사까지 보기</button>' : ''
+    }</div>`;
     return;
   }
 
-  const filtered = list.length !== data.total;
-  const line = `<p class="result-line">${filtered ? `조건에 맞는 행사 <strong>${list.length}개</strong>` : `전체 <strong>${list.length}개</strong>`}${
-    prefs.radius ? ` · ${escapeHtml(state.location.label)}에서 ${prefs.radius}km 이내` : ''
-  }</p>`;
+  const STATUS_LABEL = { active: '진행·예정', ongoing: '진행 중', upcoming: '예정', ended: '종료된', all: '전체' };
+  const notes = [];
+  if (filters.region !== 'all') notes.push(escapeHtml(filters.region));
+  if (prefs.radius) notes.push(`${escapeHtml(state.location.label)}에서 ${prefs.radius}km 이내`);
+  if (filters.q.trim()) notes.push(`"${escapeHtml(filters.q.trim())}" 검색`);
+  const line = `<p class="result-line">${STATUS_LABEL[currentStatus()]} 행사 <strong>${list.length}개</strong>${notes.length ? ` · ${notes.join(' · ')}` : ''}</p>`;
 
   let body;
   if (prefs.view === 'date') body = renderByDate(list);
@@ -283,6 +338,7 @@ async function load() {
 
 function goTo(next) {
   ym = next;
+  filters.status = 'active'; // 달을 바꾸면 상태 필터는 기본값(진행·예정)으로
   load();
 }
 
@@ -312,9 +368,14 @@ export function initMonthly() {
     setPressed(els.radius, 'data-radius', prefs.radius);
     renderContent();
   });
-  els.status.addEventListener('change', () => {
-    filters.status = els.status.value;
-    renderContent();
+  els.status.addEventListener('change', () => setStatus(els.status.value));
+  // 요약 카드의 진행 중 / 예정 / 종료를 누르면 그 행사만 (다시 누르면 진행·예정으로)
+  els.summary.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-status]');
+    if (!btn) return;
+    const pressed = btn.getAttribute('aria-pressed') === 'true';
+    setStatus(pressed && btn.dataset.status !== 'active' ? 'active' : btn.dataset.status);
+    els.content.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
   els.search.addEventListener('input', debounce(() => {
     filters.q = els.search.value;
@@ -330,6 +391,7 @@ export function initMonthly() {
 
   els.content.addEventListener('click', (e) => {
     if (e.target.closest('[data-retry]')) return load();
+    if (e.target.closest('[data-status-all]')) return setStatus('all');
     const row = e.target.closest('[data-id]');
     if (row && itemById.has(row.dataset.id)) openDetail(itemById.get(row.dataset.id));
   });
