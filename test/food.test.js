@@ -160,3 +160,28 @@ test('맛집 API 입력 검사', async () => {
   assert.equal(badArea.status, 400);
   assert.equal((await handleFoodRequest(null, '/api/food', new URLSearchParams())).status, 503);
 });
+
+test('넓은 반경(10km)은 영역을 3×3 칸으로 나눠 찾고, 칸마다 1등부터 섞음', async () => {
+  const { createKakaoLocal } = await import('../server/food/kakao.js');
+  const rects = [];
+  const fetchImpl = async (url) => {
+    const u = new URL(url);
+    const rect = u.searchParams.get('rect');
+    if (rect) {
+      rects.push(rect);
+      const [x1, y1, x2, y2] = rect.split(',').map(Number);
+      const n = rects.length;
+      // 칸 가운데에 가게 2곳 (칸 번호로 id)
+      const mk = (k) => ({ id: String(n * 100 + k), place_name: `칸${n}-${k}`, category_name: '음식점 > 한식 > 국밥', category_group_code: 'FD6', x: String((x1 + x2) / 2), y: String((y1 + y2) / 2 + k * 0.0001) });
+      return new Response(JSON.stringify({ documents: [mk(1), mk(2)], meta: { is_end: true } }));
+    }
+    return new Response(JSON.stringify({ documents: [], meta: { is_end: true } }));
+  };
+  const local = createKakaoLocal({ apiKey: 'k', fetchImpl, baseUrl: 'https://kakao.test' });
+  const places = await local.searchFood({ lat: 35.15, lng: 126.85, radiusM: 13330, kind: 'restaurant', grid: 3 });
+  assert.equal(rects.length, 9);
+  // 앞쪽 9곳은 9개 칸의 1등 (한 칸에 몰리지 않음)
+  const firstNine = places.slice(0, 9).map((p) => p.name.split('-')[1]);
+  assert.deepEqual([...new Set(firstNine)], ['1']);
+  assert.ok(Math.max(...places.map((p) => p.distanceM)) > 5000);
+});

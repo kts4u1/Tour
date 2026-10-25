@@ -87,27 +87,61 @@ export function createKakaoLocal({ apiKey, baseUrl = 'https://dapi.kakao.com', f
     return body || { documents: [], meta: { is_end: true } };
   }
 
-  /** 반경 안 맛집(또는 카페) 후보. 인기순 결과를 앞에 두고 가까운 곳을 덧붙입니다. */
-  async function searchFood({ lat, lng, radiusM, kind }) {
+  /**
+   * 반경 안 맛집(또는 카페) 후보. 인기순 결과를 앞에 두고 가까운 곳을 덧붙입니다.
+   * 카카오는 검색 한 번에 최대 45곳만 주고 가운데 쪽에 몰리므로,
+   * 넓은 반경(grid > 1)은 영역을 grid×grid 칸으로 나눠 칸마다 인기 맛집을 찾습니다.
+   */
+  async function searchFood({ lat, lng, radiusM, kind, grid = 1 }) {
     const conf = KINDS[kind];
-    const base = { x: lng, y: lat, radius: Math.min(20000, Math.round(radiusM)), size: 15 };
     const KEYWORD = '/v2/local/search/keyword.json';
     const CATEGORY = '/v2/local/search/category.json';
+    const circle = { x: lng, y: lat, radius: Math.min(20000, Math.round(radiusM)) };
 
     async function pages(path, params, maxPage) {
       const docs = [];
       for (let page = 1; page <= maxPage; page++) {
-        const body = await call(path, { ...params, page });
+        const body = await call(path, { ...params, size: 15, page });
         docs.push(...(body.documents || []));
         if (body.meta?.is_end !== false) break;
       }
       return docs;
     }
 
-    const [popular, near] = await Promise.all([
-      pages(KEYWORD, { ...base, query: conf.keyword, category_group_code: conf.code, sort: 'accuracy' }, 3),
-      pages(CATEGORY, { ...base, category_group_code: conf.code, sort: 'distance' }, 2),
-    ]);
+    // 인기순 검색 영역: 반경 원 하나, 또는 grid×grid 사각형
+    const areas = [];
+    if (grid <= 1) {
+      areas.push(circle);
+    } else {
+      const dLat = radiusM / 111000;
+      const dLng = radiusM / (111000 * Math.cos((lat * Math.PI) / 180));
+      const stepLat = (2 * dLat) / grid;
+      const stepLng = (2 * dLng) / grid;
+      for (let i = 0; i < grid; i++) {
+        for (let j = 0; j < grid; j++) {
+          const minLat = lat - dLat + i * stepLat;
+          const minLng = lng - dLng + j * stepLng;
+          areas.push({ rect: `${minLng.toFixed(6)},${minLat.toFixed(6)},${(minLng + stepLng).toFixed(6)},${(minLat + stepLat).toFixed(6)}` });
+        }
+      }
+    }
+
+    const popularLists = [];
+    let next = 0;
+    await Promise.all(
+      Array.from({ length: Math.min(4, areas.length) }, async () => {
+        while (next < areas.length) {
+          const i = next++;
+          popularLists[i] = await pages(KEYWORD, { ...areas[i], query: conf.keyword, category_group_code: conf.code, sort: 'accuracy' }, 3);
+        }
+      }),
+    );
+    const near = await pages(CATEGORY, { ...circle, category_group_code: conf.code, sort: 'distance' }, 2);
+
+    // 칸마다 1등, 2등 … 순서로 섞어서, 평점을 확인하는 앞쪽 후보가 영역 전체에 고르게 퍼지도록
+    const popular = [];
+    const longest = Math.max(0, ...popularLists.map((l) => l.length));
+    for (let rank = 0; rank < longest; rank++) for (const list of popularLists) if (list[rank]) popular.push(list[rank]);
 
     const found = new Map();
     for (const doc of [...popular, ...near]) {

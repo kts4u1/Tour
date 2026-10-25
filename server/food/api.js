@@ -41,7 +41,7 @@ export async function handleFoodRequest(service, pathname, searchParams, { now =
           stale: Boolean(area.stale),
           total: places.length,
           places,
-          pending: pendingIds(area, now()).filter((id) => inRange.has(id)),
+          pending: pendingIds(area, radiusM, now()).filter((id) => inRange.has(id)),
           batch: RATING_BATCH,
         },
       };

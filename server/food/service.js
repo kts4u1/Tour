@@ -15,7 +15,9 @@ export const AREA_FRESH_MS = 12 * HOUR;
 export const RATING_FRESH_MS = 24 * HOUR;
 export const FOOD_RADII_M = [1000, 3000, 5000, 10000];
 export const FOOD_KINDS = ['restaurant', 'cafe'];
-export const MAX_RATED = 40; // 평점을 확인하는 후보 수 (인기순 앞쪽부터)
+// 평점을 확인하는 후보 수 (인기순 앞쪽부터)와 인기 맛집을 찾는 칸 나누기 (넓은 반경은 영역을 나눠 고르게)
+export const MAX_RATED_BY_RADIUS = { 1000: 40, 3000: 48, 5000: 64, 10000: 80 };
+const GRID_BY_RADIUS = { 1000: 1, 3000: 1, 5000: 2, 10000: 3 };
 export const RATING_BATCH = 8; // 한 번에 확인하는 수 (Cloudflare 무료 플랜 한도 안)
 
 // 반경별 격자 칸 크기(도). 같은 칸에서 찾는 사람은 같은 데이터를 함께 씁니다.
@@ -51,10 +53,10 @@ export function scoreDetail(detail, now = Date.now()) {
   };
 }
 
-/** 평점을 더 받아야 하는 후보 (인기순 앞쪽 MAX_RATED 곳 중 평점이 없거나 오래된 곳) */
-export function pendingIds(area, now = Date.now()) {
+/** 평점을 더 받아야 하는 후보 (인기순 앞쪽 몇 곳 중 평점이 없거나 오래된 곳) */
+export function pendingIds(area, radiusM, now = Date.now()) {
   return area.places
-    .slice(0, MAX_RATED)
+    .slice(0, MAX_RATED_BY_RADIUS[radiusM] || 40)
     .map((p) => p.id)
     .filter((id) => {
       const r = area.ratings[id];
@@ -86,7 +88,7 @@ export function createFoodService({ kakaoKey, store, fetchImpl = globalThis.fetc
 
       let places;
       try {
-        places = await local.searchFood({ lat: cell.lat, lng: cell.lng, radiusM: cell.searchRadiusM, kind });
+        places = await local.searchFood({ lat: cell.lat, lng: cell.lng, radiusM: cell.searchRadiusM, kind, grid: GRID_BY_RADIUS[radiusM] || 1 });
       } catch (err) {
         if (saved) return { key: cell.key, ...saved, cached: true, stale: true };
         throw err;
