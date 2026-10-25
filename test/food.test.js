@@ -134,7 +134,7 @@ test('지역 칸과 KV 준비 스크립트', () => {
   assert.equal(a.key, b.key); // 가까운 두 위치는 같은 칸
   assert.ok(a.searchRadiusM > 1000);
   assert.match(a.key, AREA_KEY_RE);
-  assert.doesNotMatch('v1:restaurant:1000:../../x:1', AREA_KEY_RE);
+  assert.doesNotMatch('v2:restaurant:1000:../../x:1', AREA_KEY_RE);
 
   const list = parseNamespaceList('⛅️ wrangler\n[{"id":"abc","title":"other"},{"id":"def","title":"tour-nearby-food-cache"}]\n');
   assert.equal(findNamespace(list).id, 'def');
