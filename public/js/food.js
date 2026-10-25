@@ -54,7 +54,7 @@ function setPressed(container, attr, value) {
 }
 
 function renderControls() {
-  const radii = state.meta.foodRadii || [500, 1000, 3000, 5000];
+  const radii = state.meta.foodRadii || [1000, 3000, 5000, 10000];
   if (!radii.includes(prefs.radius)) prefs.radius = 1000;
   els.radius.innerHTML = radii.map((r) => `<button type="button" data-radius="${r}" aria-pressed="false"><b>${r < 1000 ? `${r}m` : `${r / 1000}km`}</b></button>`).join('');
   syncControls();
