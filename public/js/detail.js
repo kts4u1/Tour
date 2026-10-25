@@ -57,8 +57,7 @@ function render(item, detail, { loading = false, error = null } = {}) {
     extra = `<div class="detail-section"><p class="hint">상세 정보를 불러오지 못했어요: ${escapeHtml(error)}</p></div>`;
   } else if (detail) {
     if (detail.overview) {
-      const long = detail.overview.length > 220;
-      extra += `<section class="detail-section"><h3>소개</h3><p class="overview${long ? ' clamped' : ''}">${escapeHtml(detail.overview)}</p>${long ? '<button type="button" class="link-button" data-action="expand">더 보기</button>' : ''}</section>`;
+      extra += `<section class="detail-section"><h3>소개</h3><p class="overview">${escapeHtml(detail.overview)}</p></section>`;
     }
     if (detail.info?.length) {
       extra += `<section class="detail-section"><h3>이용 안내</h3><dl class="info-list">${detail.info
@@ -143,10 +142,6 @@ export function initDetail() {
   body.addEventListener('click', (e) => {
     const action = e.target.closest('[data-action]')?.dataset.action;
     if (action === 'share') share();
-    if (action === 'expand') {
-      body.querySelector('.overview')?.classList.remove('clamped');
-      e.target.remove();
-    }
   });
   dialog.addEventListener('close', () => controller?.abort());
 }

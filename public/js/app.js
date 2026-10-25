@@ -32,7 +32,12 @@ function initTabs() {
 }
 
 function initDialogs() {
+  // 창이 열려 있으면 뒤 화면 스크롤 잠금 (:has() 를 모르는 오래된 브라우저용)
+  const syncScrollLock = () =>
+    document.documentElement.classList.toggle('dialog-open', !!document.querySelector('dialog[open]'));
+  const observer = new MutationObserver(syncScrollLock);
   for (const dialog of document.querySelectorAll('dialog')) {
+    observer.observe(dialog, { attributes: true, attributeFilter: ['open'] });
     dialog.addEventListener('click', (e) => {
       // 바깥(배경) 누르면 닫기
       if (e.target === dialog || e.target.closest('[data-close]')) dialog.close();
