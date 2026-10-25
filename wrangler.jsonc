@@ -10,6 +10,13 @@
     "directory": "./dist",
     "binding": "ASSETS"
   },
+  // 주변 맛집 지역 데이터 저장소 (Workers KV)
+  // 실제 id 는 배포 때 scripts/ensure-kv.js 가 채웁니다. 내 PC 의 wrangler dev 에서는 이 값 그대로 써도 됩니다.
+  // kv-start
+  "kv_namespaces": [
+    { "binding": "FOOD_CACHE", "id": "FOOD_KV_ID_PLACEHOLDER" }
+  ],
+  // kv-end
   "observability": {
     "enabled": true
   }

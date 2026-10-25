@@ -1,15 +1,17 @@
 // /api/food 요청 처리 (Node 서버와 Cloudflare Worker 공통)
-//   GET /api/food?lat=&lng=&radius=1000&kind=restaurant|cafe   주변 후보 (가까운 순)
-//   GET /api/food/ratings?ids=1,2,3                            평점·영업시간·대표 메뉴 (최대 10곳)
+//   GET /api/food?lat=&lng=&radius=1000&kind=restaurant|cafe
+//       → 저장된 지역 데이터(가게 + 평점). 평점을 더 받아야 하면 pending 에 id 목록
+//   GET /api/food/ratings?area=<키>&ids=1,2,3   (최대 8곳)
+//       → 평점을 받아 지역 데이터에 저장하고 돌려줌
 import { distanceKm } from '../lib/geo.js';
-import { FOOD_KINDS, FOOD_RADII_M, MAX_RATING_IDS } from './service.js';
+import { AREA_KEY_RE, FOOD_KINDS, FOOD_RADII_M, RATING_BATCH, pendingIds } from './service.js';
 import { KakaoApiError } from './kakao.js';
 
 function bad(message) {
   return { status: 400, body: { error: message } };
 }
 
-export async function handleFoodRequest(service, pathname, searchParams) {
+export async function handleFoodRequest(service, pathname, searchParams, { now = Date.now } = {}) {
   if (!service) return { status: 503, body: { error: '맛집 검색이 설정되지 않았습니다 (KAKAO_REST_API_KEY 필요).' } };
   try {
     if (pathname === '/api/food') {
@@ -21,22 +23,43 @@ export async function handleFoodRequest(service, pathname, searchParams) {
       if (!FOOD_RADII_M.includes(radiusM)) return bad('반경 값이 올바르지 않습니다.');
       if (!FOOD_KINDS.includes(kind)) return bad('종류 값이 올바르지 않습니다.');
 
-      const places = (await service.search({ lat, lng, radiusM, kind }))
-        .map((p) => ({ ...p, distanceM: Math.round(distanceKm(lat, lng, p.lat, p.lng) * 1000) }))
-        .filter((p) => p.distanceM <= radiusM)
-        .sort((a, b) => a.distanceM - b.distanceM);
-      return { status: 200, body: { kind, radius: radiusM, demo: Boolean(service.demo), total: places.length, places } };
+      const area = await service.area({ lat, lng, radiusM, kind });
+      const inRange = new Set();
+      const places = area.places
+        .map((p) => ({ ...p, distanceM: Math.round(distanceKm(lat, lng, p.lat, p.lng) * 1000), info: area.ratings[p.id] ?? undefined }))
+        .filter((p) => p.distanceM <= radiusM);
+      for (const p of places) inRange.add(p.id);
+      return {
+        status: 200,
+        body: {
+          kind,
+          radius: radiusM,
+          demo: Boolean(service.demo),
+          area: area.key,
+          fetchedAt: area.fetchedAt,
+          cached: Boolean(area.cached),
+          stale: Boolean(area.stale),
+          total: places.length,
+          places,
+          pending: pendingIds(area, now()).filter((id) => inRange.has(id)),
+          batch: RATING_BATCH,
+        },
+      };
     }
 
     if (pathname === '/api/food/ratings') {
+      const key = searchParams.get('area') || '';
       const ids = String(searchParams.get('ids') || '')
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean);
-      if (!ids.length || ids.length > MAX_RATING_IDS || !ids.every((id) => /^\d{1,15}$/.test(id))) {
-        return bad(`ids 는 숫자 id 를 1~${MAX_RATING_IDS}개까지 넣어 주세요.`);
+      if (!AREA_KEY_RE.test(key)) return bad('area 값이 올바르지 않습니다.');
+      if (!ids.length || ids.length > RATING_BATCH || !ids.every((id) => /^\d{1,15}$/.test(id))) {
+        return bad(`ids 는 숫자 id 를 1~${RATING_BATCH}개까지 넣어 주세요.`);
       }
-      return { status: 200, body: { ratings: await service.ratings([...new Set(ids)]) } };
+      const ratings = await service.rate(key, [...new Set(ids)]);
+      if (!ratings) return { status: 404, body: { error: '지역 데이터가 없습니다. 다시 검색해 주세요.' } };
+      return { status: 200, body: { ratings } };
     }
 
     return { status: 404, body: { error: '없는 API 입니다.' } };

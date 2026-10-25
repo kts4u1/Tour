@@ -6,7 +6,8 @@ import { cafeInfo, classify } from '../server/food/categories.js';
 import { createDemoFoodService } from '../server/food/demo.js';
 import { parsePlaceDetail, toFoodPlace } from '../server/food/kakao.js';
 import { isTasty, qualityScore } from '../server/food/ranking.js';
-import { createFoodService, createMemoryFoodCache, scoreDetail } from '../server/food/service.js';
+import { AREA_KEY_RE, areaOf, createFoodService, createMemoryStore, scoreDetail } from '../server/food/service.js';
+import { findNamespace, parseNamespaceList } from '../scripts/ensure-kv.js';
 
 const panel = JSON.parse(fs.readFileSync(new URL('./fixtures/kakao-panel3.json', import.meta.url), 'utf8'));
 const CENTER = { lat: 37.5602, lng: 126.978 }; // 37.560x 는 같은 캐시 칸
@@ -63,12 +64,14 @@ test('관광객용 맛집에서 빼는 곳: 싼 한 끼 식당·술집·카페·
   assert.equal(classify('음식점 > 일식 > 초밥,롤', '스시 오마카세').label, '일식');
 });
 
-test('검색 서비스: 카카오 호출 → 후보, 평점은 캐시', async () => {
+test('지역 데이터는 12시간 동안 다시 받지 않고, 평점은 지역 데이터에 저장', async () => {
   const calls = [];
+  let kakaoDown = false;
   const fetchImpl = async (url, init) => {
     const u = new URL(url);
     calls.push(u.pathname + u.search);
     if (u.hostname === 'kakao.test') {
+      if (kakaoDown) return new Response('{"message":"boom"}', { status: 500 });
       assert.equal(init.headers.Authorization, 'KakaoAK test-key');
       const docs = u.pathname.includes('keyword')
         ? [doc(10, '인기 맛집', '음식점 > 한식 > 국밥'), doc(11, '기사식당', '음식점 > 한식')]
@@ -77,27 +80,65 @@ test('검색 서비스: 카카오 호출 → 후보, 평점은 캐시', async ()
     }
     return new Response(JSON.stringify(panel));
   };
+  let clock = Date.parse('2026-10-25T00:00:00Z');
+  const now = () => clock;
   const service = createFoodService({
-    kakaoKey: 'test-key', cache: createMemoryFoodCache(), fetchImpl,
+    kakaoKey: 'test-key', store: createMemoryStore(), fetchImpl, now,
     kakaoBaseUrl: 'https://kakao.test', panelBaseUrl: 'https://panel.test',
   });
+  const search = (lat = CENTER.lat) =>
+    handleFoodRequest(service, '/api/food', new URLSearchParams({ lat, lng: CENTER.lng, radius: '1000', kind: 'restaurant' }), { now });
 
-  const res = await handleFoodRequest(service, '/api/food', new URLSearchParams({ lat: CENTER.lat, lng: CENTER.lng, radius: '1000', kind: 'restaurant' }));
-  assert.equal(res.status, 200);
-  assert.deepEqual(res.body.places.map((p) => p.id), ['10']); // 기사식당 제외, 5km 밖 제외
+  const first = await search();
+  assert.equal(first.status, 200);
+  assert.deepEqual(first.body.places.map((p) => p.id), ['10']); // 기사식당·먼 곳 제외
+  assert.equal(first.body.cached, false);
+  assert.deepEqual(first.body.pending, ['10']);
+  assert.match(first.body.area, AREA_KEY_RE);
   const kakaoCalls = calls.length;
   assert.ok(calls.some((c) => c.includes('keyword') && c.includes('sort=accuracy') && c.includes('category_group_code=FD6')));
 
-  // 같은 동네 다시 검색 → 캐시
-  await handleFoodRequest(service, '/api/food', new URLSearchParams({ lat: CENTER.lat + 0.0001, lng: CENTER.lng, radius: '1000', kind: 'restaurant' }));
-  assert.equal(calls.length, kakaoCalls);
+  // 평점 받기 → 지역 데이터에 저장
+  const rated = await handleFoodRequest(service, '/api/food/ratings', new URLSearchParams({ area: first.body.area, ids: '10' }), { now });
+  assert.equal(rated.body.ratings['10'].rating.count, 36);
+  const panelCalls = calls.filter((c) => c.startsWith('/places/panel3/')).length;
 
-  const r1 = await handleFoodRequest(service, '/api/food/ratings', new URLSearchParams({ ids: '10,12' }));
-  assert.equal(r1.body.ratings['10'].rating.count, 36);
-  assert.ok(calls.some((c) => c.startsWith('/places/panel3/10')));
-  const before = calls.length;
-  await handleFoodRequest(service, '/api/food/ratings', new URLSearchParams({ ids: '10' }));
-  assert.equal(calls.length, before);
+  // 같은 칸에서 다시 검색 (6시간 뒤) → 카카오 호출 없이 평점까지 바로
+  clock += 6 * 3600 * 1000;
+  const again = await search(CENTER.lat + 0.0003);
+  assert.equal(calls.length, kakaoCalls + panelCalls);
+  assert.equal(again.body.cached, true);
+  assert.deepEqual(again.body.pending, []);
+  assert.equal(again.body.places[0].info.rating.count, 36);
+
+  // 13시간 뒤 → 목록은 새로 받지만, 하루가 안 된 평점은 그대로 사용
+  clock += 7 * 3600 * 1000;
+  const refreshed = await search();
+  assert.equal(refreshed.body.cached, false);
+  assert.ok(calls.length > kakaoCalls + panelCalls);
+  assert.deepEqual(refreshed.body.pending, []);
+
+  // 또 13시간 뒤 카카오 장애 → 이전 데이터를 그대로
+  clock += 13 * 3600 * 1000;
+  kakaoDown = true;
+  const stale = await search();
+  assert.equal(stale.status, 200);
+  assert.equal(stale.body.stale, true);
+  assert.equal(stale.body.places.length, 1);
+  assert.deepEqual(stale.body.pending, ['10']); // 평점은 하루가 지나 다시 받을 대상
+});
+
+test('지역 칸과 KV 준비 스크립트', () => {
+  const a = areaOf(37.56021, 126.97803, 1000, 'restaurant');
+  const b = areaOf(37.56099, 126.97888, 1000, 'restaurant');
+  assert.equal(a.key, b.key); // 가까운 두 위치는 같은 칸
+  assert.ok(a.searchRadiusM > 1000);
+  assert.match(a.key, AREA_KEY_RE);
+  assert.doesNotMatch('v1:restaurant:1000:../../x:1', AREA_KEY_RE);
+
+  const list = parseNamespaceList('⛅️ wrangler\n[{"id":"abc","title":"other"},{"id":"def","title":"tour-nearby-food-cache"}]\n');
+  assert.equal(findNamespace(list).id, 'def');
+  assert.deepEqual(parseNamespaceList('error'), []);
 });
 
 test('맛집 API 입력 검사', async () => {
@@ -110,9 +151,12 @@ test('맛집 API 입력 검사', async () => {
   assert.equal(ok.status, 200);
   assert.equal(ok.body.demo, true);
   assert.ok(ok.body.places.every((p) => p.distanceM <= 1000 && p.kind === 'cafe'));
-  const bad = await handleFoodRequest(demo, '/api/food/ratings', new URLSearchParams({ ids: '1,abc' }));
+  const area = ok.body.area;
+  const bad = await handleFoodRequest(demo, '/api/food/ratings', new URLSearchParams({ area, ids: '1,abc' }));
   assert.equal(bad.status, 400);
-  const many = await handleFoodRequest(demo, '/api/food/ratings', new URLSearchParams({ ids: Array.from({ length: 11 }, (_, i) => i + 1).join(',') }));
+  const many = await handleFoodRequest(demo, '/api/food/ratings', new URLSearchParams({ area, ids: Array.from({ length: 9 }, (_, i) => i + 1).join(',') }));
   assert.equal(many.status, 400);
+  const badArea = await handleFoodRequest(demo, '/api/food/ratings', new URLSearchParams({ area: 'x', ids: '1' }));
+  assert.equal(badArea.status, 400);
   assert.equal((await handleFoodRequest(null, '/api/food', new URLSearchParams())).status, 503);
 });

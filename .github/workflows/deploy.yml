@@ -75,6 +75,9 @@ jobs:
             exit 1
           fi
 
+      - name: 맛집 저장소(KV) 준비
+        run: node scripts/ensure-kv.js
+
       - name: Cloudflare 에 배포
         run: npx wrangler deploy
 

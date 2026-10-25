@@ -39,6 +39,10 @@
   리뷰 10개 이상에 점수가 높으면 **맛집** / **인기 카페** 표시
 - 관광객용이라 **최저가 계산은 빼고**, 구내식당·기사식당·한식뷔페·도시락·패스트푸드·술집도 뺌. 카페는 프랜차이즈 커피점을 뺌
 - "평점 낮은 곳도 보기"를 켜면 전부 보임
+- **카카오 API 를 검색할 때마다 부르지 않음**: 지역(반경별 약 200m~2km 격자 칸)마다 받아 둔 가게 목록과 평점을
+  Cloudflare 저장소(Workers KV)에 보관하고, **12시간이 지났을 때만**(하루 최대 두 번) 새로 받음.
+  같은 칸에서 검색하는 다른 사람도 저장된 데이터를 바로 받고, 카카오가 잠시 안 되면 이전 데이터를 보여 줌.
+  처음 검색되는 지역만 평점을 8곳씩 나눠 받느라 몇 초 걸림. 화면에 "카카오맵 데이터 기준: 오늘 09:34"처럼 받은 시각 표시
 
 ### 상세 정보
 - 사진, 기간, 주소, 거리, 소개글, 이용 안내(장소·시간·요금·주최 등), 홈페이지
@@ -97,6 +101,8 @@ GitHub 에 push 하면 GitHub Actions 가 자동으로 Cloudflare Workers 에 �
    처음 Workers 를 쓰는 계정이면 대시보드에서 workers.dev 서브도메인을 먼저 정하라고 나올 수 있습니다.
 
 그 뒤로는 **매일 새벽 3시 41분(한국 시간)** 에 최신 행사 데이터로 자동 재배포됩니다.
+맛집 저장소(Workers KV, 이름 `tour-nearby-food-cache`)는 배포 때 자동으로 만들어집니다(API 토큰에 "Workers KV Storage: Edit" 권한 필요 — "Workers 편집" 템플릿에 포함).
+무료 플랜의 KV 쓰기는 하루 1,000번이라, 처음 검색되는 지역을 하루 약 150곳까지 저장할 수 있습니다(이미 저장된 지역 검색은 쓰기 없음).
 내 도메인을 쓰려면 Cloudflare 대시보드 › tour-nearby › 설정 › 도메인 및 경로에서 추가하세요.
 
 ### Cloudflare 배포는 어떻게 동작하나요?
@@ -146,8 +152,8 @@ GitHub Actions (매일)                       Cloudflare
 | `GET /api/nearby?lat=&lng=&radius=30&category=all&when=all&sort=recommend&offset=0&limit=30` | 내 주변 검색. `radiusCounts`(반경별 개수), `typeCounts`(분류별 개수) 포함 |
 | `GET /api/festivals?year=2026&month=10` | 그 달의 전국 행사, 시·도별/상태별 개수 |
 | `GET /api/detail/:contentId?typeId=15` | 상세 정보(소개, 이용 안내, 홈페이지) |
-| `GET /api/food?lat=&lng=&radius=1000&kind=restaurant` | 주변 맛집(`restaurant`)·카페(`cafe`) 후보. 반경 500/1000/3000/5000m |
-| `GET /api/food/ratings?ids=1,2,3` | 카카오맵 평점·영업시간·메뉴와 맛집 점수 (한 번에 10곳까지) |
+| `GET /api/food?lat=&lng=&radius=1000&kind=restaurant` | 저장된 지역 데이터(맛집 `restaurant`·카페 `cafe`, 평점 포함). 평점을 더 받아야 하면 `pending` 에 id. 반경 500/1000/3000/5000m |
+| `GET /api/food/ratings?area=<키>&ids=1,2,3` | 비어 있는 평점을 받아 지역 데이터에 저장 (한 번에 8곳까지) |
 
 - `category`: `all` · `festival` · `12`(관광지) · `14`(문화시설) · `28`(레포츠)
 - `when`: `all` · `ongoing` · `weekend` · `30d`

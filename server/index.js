@@ -4,7 +4,7 @@ import { createDemoSource } from './sources/demo.js';
 import { createLiveSource } from './sources/live.js';
 import { createTourApi } from './tourApi.js';
 import { createDemoFoodService } from './food/demo.js';
-import { createFoodService, createMemoryFoodCache } from './food/service.js';
+import { createFoodService, createMemoryStore } from './food/service.js';
 
 loadEnvFile();
 const config = loadConfig();
@@ -20,7 +20,7 @@ const source =
 await source.init({ warmup: config.warmup });
 
 const food = config.kakaoKey
-  ? createFoodService({ kakaoKey: config.kakaoKey, cache: createMemoryFoodCache() })
+  ? createFoodService({ kakaoKey: config.kakaoKey, store: createMemoryStore() })
   : createDemoFoodService();
 
 const app = createApp({ source, rootDir: config.rootDir, food });

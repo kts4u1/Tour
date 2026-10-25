@@ -12,29 +12,30 @@ import { createDemoSource } from '../server/sources/demo.js';
 import { TourApiError, createTourApi } from '../server/tourApi.js';
 import { handleFoodRequest } from '../server/food/api.js';
 import { createDemoFoodService } from '../server/food/demo.js';
-import { createFoodService } from '../server/food/service.js';
+import { createFoodService, createMemoryStore } from '../server/food/service.js';
 
-// Cloudflare 캐시 (내 도메인에서만 동작하고 workers.dev 에서는 저장되지 않음 - 그래도 동작에는 문제 없음)
-const workerCache = {
-  key: (k) => new Request(`https://food-cache.internal/${encodeURIComponent(k)}`),
-  async get(k) {
-    const hit = await caches.default.match(this.key(k));
-    return hit ? hit.json() : undefined;
-  },
-  async set(k, value, ttlMs) {
-    await caches.default.put(
-      this.key(k),
-      new Response(JSON.stringify(value), {
-        headers: { 'Content-Type': 'application/json', 'Cache-Control': `public, max-age=${Math.round(ttlMs / 1000)}` },
-      }),
-    );
-  },
-};
+// 맛집 지역 데이터 저장소: Workers KV (FOOD_CACHE). 없으면 이 Worker 인스턴스 메모리에 잠깐 보관
+const memoryStore = createMemoryStore(300);
+function kvStore(kv) {
+  return {
+    async get(key) {
+      return (await kv.get(key, 'json')) ?? undefined;
+    },
+    async put(key, value) {
+      // 12시간이 지나면 새로 받지만, 카카오가 실패할 때 쓰도록 3일간 보관
+      await kv.put(key, JSON.stringify(value), { expirationTtl: 3 * 24 * 60 * 60 });
+    },
+  };
+}
 
 function foodService(env) {
-  return env.KAKAO_REST_API_KEY
-    ? createFoodService({ kakaoKey: env.KAKAO_REST_API_KEY, cache: workerCache })
-    : createDemoFoodService();
+  if (!env.KAKAO_REST_API_KEY) return createDemoFoodService();
+  return createFoodService({
+    kakaoKey: env.KAKAO_REST_API_KEY,
+    store: env.FOOD_CACHE ? kvStore(env.FOOD_CACHE) : memoryStore,
+    kakaoBaseUrl: env.KAKAO_API_BASE || undefined, // 테스트용
+    panelBaseUrl: env.KAKAO_PANEL_BASE || undefined, // 테스트용
+  });
 }
 
 const DEFAULT_API_BASE = 'https://apis.data.go.kr/B551011/KorService2';

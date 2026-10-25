@@ -1,21 +1,20 @@
 // "주변 맛집" 화면: 내 주변 맛집·추천 카페 (카카오맵 평점 기준)
-// 1) 주변 후보를 받고  2) 평점을 10곳씩 받아 오면서  3) 맛집 점수 순으로 다시 정렬합니다.
+// 서버가 지역별로 저장해 둔 데이터(하루 최대 두 번 카카오에서 새로 받음)를 받아 맛집 점수 순으로 보여 줍니다.
+// 처음 검색되는 지역이라 평점이 비어 있으면, 그 부분만 8곳씩 받아 채웁니다.
 import { api } from './api.js';
 import { openFoodDetail } from './detail.js';
 import { onLocationChange, state } from './state.js';
 import { ICON, categoryIcon, escapeHtml, storage } from './util.js';
 
 const PAGE_SIZE = 30;
-const RATING_BATCH = 10; // 서버가 한 번에 받는 최대 개수
-const RATING_PARALLEL = 2;
-const MAX_RATED = 60; // 평점을 확인할 최대 후보 수
 const RECOMMEND_MIN = 3.85; // server/food/ranking.js 의 RECOMMEND_MIN_SCORE 와 같게
 
 const prefs = { kind: 'restaurant', radius: 1000, sort: 'quality', showAll: false, ...storage.get('foodPrefs', {}) };
 let group = 'all';
 let candidates = [];
-const ratings = new Map(); // id -> 평점 정보 (null = 정보 없음). 세션 동안 유지
+const ratings = new Map(); // id -> 평점 정보 (null = 정보 없음)
 let ratingProgress = { done: 0, total: 0 };
+let areaInfo = null; // { area, fetchedAt, stale }
 let shown = PAGE_SIZE;
 let loadedOnce = false;
 let controller = null;
@@ -38,6 +37,13 @@ const savePrefs = () => storage.set('foodPrefs', prefs);
 const fmtM = (m) => (m < 1000 ? `${m}m` : `${(m / 1000).toFixed(m < 10000 ? 1 : 0)}km`);
 const fmtWon = (n) => (n ? `${n.toLocaleString()}원` : '');
 const isCafe = () => prefs.kind === 'cafe';
+
+function fmtTime(ms) {
+  const d = new Date(ms);
+  const sameDay = d.toDateString() === new Date().toDateString();
+  const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return sameDay ? `오늘 ${hm}` : `${d.getMonth() + 1}/${d.getDate()} ${hm}`;
+}
 
 function setPressed(container, attr, value) {
   for (const btn of container.querySelectorAll(`[${attr}]`)) {
@@ -154,7 +160,7 @@ function render() {
   } else {
     els.summary.innerHTML = `${where}에서 ${what} <strong>${total}곳</strong>을 찾았어요${
       prefs.showAll ? '' : ' <span class="muted">(카카오맵 평점이 좋은 곳만)</span>'
-    }`;
+    }${areaInfo?.fetchedAt ? `<br><span class="muted data-time">카카오맵 데이터 기준: ${escapeHtml(fmtTime(areaInfo.fetchedAt))}${areaInfo.stale ? ' (새로 받지 못해 이전 데이터)' : ''}</span>` : ''}`;
   }
 
   if (!items.length) {
@@ -178,30 +184,23 @@ function skeleton(count = 4) {
   return Array.from({ length: count }, () => '<div class="card skeleton" aria-hidden="true"><div class="thumb"></div><div><div class="line" style="width:35%"></div><div class="line" style="width:80%"></div><div class="line" style="width:60%"></div></div></div>').join('');
 }
 
-async function loadRatings(signal) {
-  const need = candidates.slice(0, MAX_RATED).map((p) => p.id).filter((id) => !ratings.has(id));
-  const already = Math.min(candidates.length, MAX_RATED) - need.length;
-  ratingProgress = { done: already, total: Math.min(candidates.length, MAX_RATED) };
+/** 평점이 비어 있는 곳만 서버에 받아 달라고 함 (서버가 지역 데이터에 저장해서 다음 사람은 바로 받음) */
+async function fillRatings(pending, batch, signal) {
+  ratingProgress = { done: 0, total: pending.length };
   render();
-  const batches = [];
-  for (let i = 0; i < need.length; i += RATING_BATCH) batches.push(need.slice(i, i + RATING_BATCH));
-  let next = 0;
-  async function worker() {
-    while (next < batches.length) {
-      const batch = batches[next++];
-      try {
-        const { ratings: got } = await api.foodRatings(batch, signal);
-        for (const id of batch) ratings.set(id, got[id] ?? null);
-      } catch (err) {
-        if (err.name === 'AbortError') throw err;
-        for (const id of batch) ratings.set(id, null);
-      }
-      if (signal.aborted) return;
-      ratingProgress.done += batch.length;
-      render();
+  for (let i = 0; i < pending.length; i += batch) {
+    const ids = pending.slice(i, i + batch);
+    try {
+      const { ratings: got } = await api.foodRatings(areaInfo.area, ids, signal);
+      for (const id of ids) ratings.set(id, got[id] ?? null);
+    } catch (err) {
+      if (err.name === 'AbortError') throw err;
+      for (const id of ids) ratings.set(id, null);
     }
+    if (signal.aborted) return;
+    ratingProgress.done += ids.length;
+    render();
   }
-  await Promise.all(Array.from({ length: RATING_PARALLEL }, worker));
 }
 
 async function load() {
@@ -214,6 +213,8 @@ async function load() {
   lastError = null;
   shown = PAGE_SIZE;
   candidates = [];
+  areaInfo = null;
+  ratings.clear();
   ratingProgress = { done: 0, total: 1 };
   els.summary.textContent = '주변 가게를 찾는 중…';
   els.list.innerHTML = skeleton();
@@ -223,13 +224,18 @@ async function load() {
     const data = await api.food({ lat: loc.lat.toFixed(5), lng: loc.lng.toFixed(5), radius: prefs.radius, kind: prefs.kind }, signal);
     if (signal.aborted) return;
     els.demo.hidden = !data.demo;
+    areaInfo = { area: data.area, fetchedAt: data.fetchedAt, stale: data.stale };
     candidates = data.places;
-    if (!candidates.length) {
+    const pending = new Set(data.pending);
+    // 평점 확인 대상이 아닌 곳(인기순 뒤쪽)은 "정보 없음"으로
+    for (const p of candidates) ratings.set(p.id, p.info !== undefined ? p.info : pending.has(p.id) ? undefined : null);
+    for (const id of pending) ratings.delete(id);
+    if (!pending.size) {
       ratingProgress = { done: 0, total: 0 };
       render();
       return;
     }
-    await loadRatings(signal);
+    await fillRatings([...pending], data.batch || 8, signal);
   } catch (err) {
     if (err.name === 'AbortError') return;
     lastError = err;

@@ -62,10 +62,12 @@ export function createDemoFoodService() {
   return {
     enabled: true,
     demo: true,
-    async search({ lat, lng, radiusM, kind }) {
-      return demoPlaces(lat, lng, radiusM, kind);
+    async area({ lat, lng, radiusM, kind }) {
+      const places = demoPlaces(lat, lng, radiusM, kind);
+      const ratings = Object.fromEntries(places.map((p) => [p.id, demoDetail(p.id)]));
+      return { key: `v1:${kind}:${radiusM}:${lat.toFixed(3)}:${lng.toFixed(3)}`, fetchedAt: Date.now(), places, ratings, cached: true };
     },
-    async ratings(ids) {
+    async rate(key, ids) {
       return Object.fromEntries(ids.map((id) => [id, demoDetail(id)]));
     },
   };
