@@ -53,19 +53,25 @@ jobs:
           cache: npm
       - run: npm ci
 
-      - name: 시크릿 확인
+      - name: TourAPI 인증키 확인
         run: |
-          missing=""
-          [ -z "$TOUR_API_KEY" ] && missing="$missing TOUR_API_KEY"
-          [ -z "$CLOUDFLARE_API_TOKEN" ] && missing="$missing CLOUDFLARE_API_TOKEN"
-          [ -z "$CLOUDFLARE_ACCOUNT_ID" ] && missing="$missing CLOUDFLARE_ACCOUNT_ID"
-          if [ -n "$missing" ]; then
-            echo "::error::GitHub 저장소 Settings › Secrets and variables › Actions 에 다음 시크릿을 등록하세요:$missing"
+          if [ -z "$TOUR_API_KEY" ]; then
+            echo "::error::GitHub 저장소 Settings › Secrets and variables › Actions 에 TOUR_API_KEY 를 등록하세요."
             exit 1
           fi
 
       - name: 관광 데이터 받기 (dist/ 만들기)
         run: npm run build:static -- --require-key
+
+      - name: Cloudflare 시크릿 확인
+        run: |
+          missing=""
+          [ -z "$CLOUDFLARE_API_TOKEN" ] && missing="$missing CLOUDFLARE_API_TOKEN"
+          [ -z "$CLOUDFLARE_ACCOUNT_ID" ] && missing="$missing CLOUDFLARE_ACCOUNT_ID"
+          if [ -n "$missing" ]; then
+            echo "::error::관광 데이터는 정상적으로 받았습니다. 배포하려면 GitHub Secrets 에 다음을 등록하세요:$missing"
+            exit 1
+          fi
 
       - name: Cloudflare 에 배포
         run: npx wrangler deploy
