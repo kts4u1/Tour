@@ -141,15 +141,24 @@ function renderSummary() {
 
   const stat = (key, label, n, extra = '') =>
     `<button type="button" class="stat${extra}" data-status="${key}" aria-pressed="false">${label}<b>${n}</b></button>`;
+  const { ongoing, upcoming, ended } = statusCounts;
+  const pills = t < 0
+    ? [
+        // 지난달: 전체가 기본, 아직 이어지는 행사가 있으면 진행 중도
+        stat('all', '전체', total),
+        ongoing ? stat('ongoing', '진행 중', ongoing) : '',
+        stat('ended', '종료', ended, ' muted-stat'),
+      ]
+    : [
+        stat('active', '진행·예정', ongoing + upcoming),
+        stat('ongoing', '진행 중', ongoing),
+        stat('upcoming', '예정', upcoming),
+        stat('ended', '종료', ended, ' muted-stat'),
+      ];
   els.summary.innerHTML = `
     <p class="headline">${headline}</p>
     ${shown ? `<p class="regions-line">${shown}${rest}</p>` : ''}
-    <div class="stats" role="group" aria-label="진행 상태로 보기">
-      ${t < 0 ? '' : stat('active', '진행·예정', statusCounts.ongoing + statusCounts.upcoming)}
-      ${t < 0 ? '' : stat('ongoing', '진행 중', statusCounts.ongoing)}
-      ${t < 0 ? '' : stat('upcoming', '예정', statusCounts.upcoming)}
-      ${stat(t < 0 ? 'all' : 'ended', '종료', statusCounts.ended, ' muted-stat')}
-    </div>`;
+    <div class="stats" role="group" aria-label="진행 상태로 보기">${pills.join('')}</div>`;
   syncStatusControls();
 }
 
