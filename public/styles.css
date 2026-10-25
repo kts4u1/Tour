@@ -16,6 +16,9 @@
   --c12: #0f766e; --c12-bg: #d5f5ef;
   --c14: #7c3aed; --c14-bg: #ede9fe;
   --c28: #c2410c; --c28-bg: #ffedd5;
+  --cfood: #ea580c; --cfood-bg: #ffedd5;
+  --ccafe: #92400e; --ccafe-bg: #fdf0dc;
+  --star: #f59e0b;
 
   --ongoing: #15803d; --ongoing-bg: #dcfce7;
   --upcoming: #1d4ed8; --upcoming-bg: #dbeafe;
@@ -47,6 +50,8 @@
     --c12: #2dd4bf; --c12-bg: #123f3b;
     --c14: #a78bfa; --c14-bg: #2b1a55;
     --c28: #fb923c; --c28-bg: #45210f;
+    --cfood: #fb923c; --cfood-bg: #45210f;
+    --ccafe: #fbbf24; --ccafe-bg: #3d2a10;
     --ongoing: #4ade80; --ongoing-bg: #0f3a22;
     --upcoming: #60a5fa; --upcoming-bg: #172a54;
     --ended: #94a3b8; --ended-bg: #1e293b;
@@ -426,3 +431,23 @@ html:has(dialog[open]) body, html.dialog-open body { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ===== 주변 맛집 ===== */
+.radius-group.four { grid-template-columns: repeat(4, 1fr); }
+.cat-food { color: var(--cfood); background: var(--cfood-bg); }
+.cat-cafe { color: var(--ccafe); background: var(--ccafe-bg); }
+.ph-food { background: linear-gradient(135deg, var(--cfood-bg), color-mix(in srgb, var(--cfood-bg) 60%, var(--surface))); color: var(--cfood); }
+.ph-cafe { background: linear-gradient(135deg, var(--ccafe-bg), color-mix(in srgb, var(--ccafe-bg) 60%, var(--surface))); color: var(--ccafe); }
+.badge.tasty { color: #fff; background: var(--cfood); }
+.star { display: inline-flex; align-items: center; gap: 2px; color: var(--text); }
+.star svg { width: 15px !important; height: 15px !important; fill: var(--star) !important; stroke: var(--star) !important; }
+.detail-hero.short { height: 120px !important; }
+.detail-hero.short svg { width: 44px; height: 44px; }
+.card-meta.rating { color: var(--text); }
+.muted { color: var(--muted); font-weight: 500; }
+.check { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.check input { width: 18px; height: 18px; accent-color: var(--brand); }
+.banner.inline { width: auto; margin: 0 0 12px; }
+.food-credit { margin-top: 14px; }
+.menu-list div { grid-template-columns: 1fr auto; }
+.menu-list dd { font-weight: 700; white-space: nowrap; }

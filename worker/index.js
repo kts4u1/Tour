@@ -10,6 +10,32 @@ import { todayKST } from '../server/lib/dates.js';
 import { metaPayload } from '../server/meta.js';
 import { createDemoSource } from '../server/sources/demo.js';
 import { TourApiError, createTourApi } from '../server/tourApi.js';
+import { handleFoodRequest } from '../server/food/api.js';
+import { createDemoFoodService } from '../server/food/demo.js';
+import { createFoodService } from '../server/food/service.js';
+
+// Cloudflare 캐시 (내 도메인에서만 동작하고 workers.dev 에서는 저장되지 않음 - 그래도 동작에는 문제 없음)
+const workerCache = {
+  key: (k) => new Request(`https://food-cache.internal/${encodeURIComponent(k)}`),
+  async get(k) {
+    const hit = await caches.default.match(this.key(k));
+    return hit ? hit.json() : undefined;
+  },
+  async set(k, value, ttlMs) {
+    await caches.default.put(
+      this.key(k),
+      new Response(JSON.stringify(value), {
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': `public, max-age=${Math.round(ttlMs / 1000)}` },
+      }),
+    );
+  },
+};
+
+function foodService(env) {
+  return env.KAKAO_REST_API_KEY
+    ? createFoodService({ kakaoKey: env.KAKAO_REST_API_KEY, cache: workerCache })
+    : createDemoFoodService();
+}
 
 const DEFAULT_API_BASE = 'https://apis.data.go.kr/B551011/KorService2';
 
@@ -38,6 +64,7 @@ async function handleMeta(request, env) {
       today: todayKST(),
       dataBuiltAt: data?.builtAt ?? null,
       dataStatus: data ? { festivals: data.festivals, places: data.places, festivalsFrom: data.festivalsFrom } : null,
+      food: { enabled: true, demo: !env.KAKAO_REST_API_KEY },
     }),
     200,
     { 'Cache-Control': 'no-store' },
@@ -77,6 +104,10 @@ export default {
 
     try {
       if (url.pathname === '/api/meta') return await handleMeta(request, env);
+      if (url.pathname === '/api/food' || url.pathname === '/api/food/ratings') {
+        const { status, body } = await handleFoodRequest(foodService(env), url.pathname, url.searchParams);
+        return json(body, status, { 'Cache-Control': 'no-store' });
+      }
       const match = url.pathname.match(/^\/api\/detail\/(\d{1,12})$/);
       if (match) return await handleDetail(request, env, ctx, match[1]);
       if (url.pathname.startsWith('/api/detail/')) return json({ error: 'id 값이 올바르지 않습니다.' }, 400);

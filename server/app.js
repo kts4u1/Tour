@@ -4,6 +4,7 @@ import express from 'express';
 import { CATEGORIES, RADII_KM, SORTS, WHEN_FILTERS } from './catalog.js';
 import { BadRequestError, NotFoundError } from './errors.js';
 import { todayKST } from './lib/dates.js';
+import { handleFoodRequest } from './food/api.js';
 import { SECURITY_HEADERS } from './headers.js';
 import { metaPayload } from './meta.js';
 import { festivalsForMonth, findNearby } from './services.js';
@@ -29,7 +30,7 @@ function number(value, { name, min, max, fallback, integer = false }) {
   return n;
 }
 
-export function createApp({ source, rootDir, now = () => new Date() }) {
+export function createApp({ source, rootDir, now = () => new Date(), food = null }) {
   const app = express();
   app.disable('x-powered-by');
   app.set('etag', 'strong');
@@ -48,6 +49,7 @@ export function createApp({ source, rootDir, now = () => new Date() }) {
         demo: source.mode === 'demo',
         today: todayKST(now()),
         dataStatus: source.status(),
+        food: food ? { enabled: true, demo: Boolean(food.demo) } : null,
       }),
     );
   });
@@ -83,6 +85,14 @@ export function createApp({ source, rootDir, now = () => new Date() }) {
     res.set('Cache-Control', 'private, max-age=3600');
     res.json(await source.getDetail(id, typeId));
   });
+
+  const foodRoute = (pathname) => async (req, res) => {
+    const { status, body } = await handleFoodRequest(food, pathname, new URLSearchParams(req.query));
+    res.set('Cache-Control', 'no-store');
+    res.status(status).json(body);
+  };
+  api.get('/food', foodRoute('/api/food'));
+  api.get('/food/ratings', foodRoute('/api/food/ratings'));
 
   api.use((req, res) => res.status(404).json({ error: '없는 API 입니다.' }));
 

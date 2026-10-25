@@ -1,11 +1,12 @@
 // 서비스워커: 최신 화면을 우선 보여주고(network-first), 오프라인일 때만 저장된 화면을 사용합니다.
-const CACHE = 'tour-nearby-v3';
+const CACHE = 'tour-nearby-v4';
 const SHELL = [
   '/',
   '/styles.css',
   '/js/app.js',
   '/js/api.js',
   '/js/detail.js',
+  '/js/food.js',
   '/js/location.js',
   '/js/map.js',
   '/js/monthly.js',

@@ -31,6 +31,15 @@
   - **날짜순**: 시작일별로 묶어서 (지난달부터 이어지는 행사는 맨 위)
   - **일정표**: 한 달 달력 위에 행사 기간을 막대로 표시, 오늘 위치 표시
 
+### 주변 맛집 · 추천 카페
+- 맛집 / 카페를 고르고 반경 **500m · 1km · 3km · 5km** 안에서 찾기
+- 데이터는 [한끼 최저가](https://github.com/kts4u1/Restaurant) 앱과 같은 방식으로 모읍니다:
+  카카오 로컬 API로 주변 가게를 찾고, 카카오맵 장소 정보에서 **평점·리뷰 수·블로그 리뷰 수·"맛" 추천 수·영업시간·메뉴**를 가져옴
+- 맛집 점수도 한끼 최저가와 같은 공식(리뷰가 적은 곳의 높은 평점은 평균 쪽으로 보정)이고, 평점이 좋은 곳만 맛집순으로 보여 줌.
+  리뷰 10개 이상에 점수가 높으면 **맛집** / **인기 카페** 표시
+- 관광객용이라 **최저가 계산은 빼고**, 구내식당·기사식당·한식뷔페·도시락·패스트푸드·술집도 뺌. 카페는 프랜차이즈 커피점을 뺌
+- "평점 낮은 곳도 보기"를 켜면 전부 보임
+
 ### 상세 정보
 - 사진, 기간, 주소, 거리, 소개글, 이용 안내(장소·시간·요금·주최 등), 홈페이지
 - 카카오맵 길찾기 · 카카오맵 · 네이버지도 · 구글 캘린더에 추가 · 전화 · 공유
@@ -80,6 +89,7 @@ GitHub 에 push 하면 GitHub Actions 가 자동으로 Cloudflare Workers 에 �
    | `TOUR_API_KEY` | 공공데이터포털 TourAPI 인증키 |
    | `CLOUDFLARE_API_TOKEN` | 2번에서 만든 API 토큰 |
    | `CLOUDFLARE_ACCOUNT_ID` | 1번의 계정 ID |
+   | `KAKAO_REST_API_KEY` | (선택) 카카오 REST API 키 — 주변 맛집 탭용. 한끼 최저가에 넣은 키와 같은 것. 없으면 예시 맛집이 나옴 |
 
 4. **배포 실행**: 저장소 **Actions** 탭 › **Cloudflare 배포** › **Run workflow** (또는 기본 브랜치에 push)
 5. 배포가 끝나면 `https://tour-nearby.<내-서브도메인>.workers.dev` 주소로 접속합니다.
@@ -136,6 +146,8 @@ GitHub Actions (매일)                       Cloudflare
 | `GET /api/nearby?lat=&lng=&radius=30&category=all&when=all&sort=recommend&offset=0&limit=30` | 내 주변 검색. `radiusCounts`(반경별 개수), `typeCounts`(분류별 개수) 포함 |
 | `GET /api/festivals?year=2026&month=10` | 그 달의 전국 행사, 시·도별/상태별 개수 |
 | `GET /api/detail/:contentId?typeId=15` | 상세 정보(소개, 이용 안내, 홈페이지) |
+| `GET /api/food?lat=&lng=&radius=1000&kind=restaurant` | 주변 맛집(`restaurant`)·카페(`cafe`) 후보. 반경 500/1000/3000/5000m |
+| `GET /api/food/ratings?ids=1,2,3` | 카카오맵 평점·영업시간·메뉴와 맛집 점수 (한 번에 10곳까지) |
 
 - `category`: `all` · `festival` · `12`(관광지) · `14`(문화시설) · `28`(레포츠)
 - `when`: `all` · `ongoing` · `weekend` · `30d`
@@ -146,6 +158,7 @@ GitHub Actions (매일)                       Cloudflare
 | 이름 | 기본값 | 설명 |
 | --- | --- | --- |
 | `TOUR_API_KEY` | (없음) | TourAPI 인증키. 없으면 데모 모드 |
+| `KAKAO_REST_API_KEY` | (없음) | 카카오 REST API 키 (주변 맛집). 없으면 예시 맛집 |
 | `PORT` | `3000` | 서버 포트 |
 | `DEMO_MODE` | `0` | `1` 이면 키가 있어도 데모 모드 |
 | `CACHE_DIR` | `data/cache` | 전국 목록 저장 위치 |
@@ -171,7 +184,9 @@ public/
   js/detail.js      상세 화면
   js/map.js         지도 (Leaflet + OpenStreetMap)
   js/location.js    현재 위치 · 도시 선택
-worker/index.js     Cloudflare Worker (/api/meta, /api/detail)
+server/food/        주변 맛집 (카카오 검색·평점, 맛집 점수 - 한끼 최저가에서 가져옴)
+public/js/food.js   주변 맛집 화면
+worker/index.js     Cloudflare Worker (/api/meta, /api/detail, /api/food)
 scripts/build-static.js  Cloudflare 배포용 dist/ 만들기 (데이터 받기)
 public/js/staticEngine.js  Cloudflare 모드에서 브라우저 계산
 wrangler.jsonc      Cloudflare 설정
@@ -194,6 +209,8 @@ npm test
   특히 `searchFestival2` 의 `eventStartDate` 가 "그날 이후 진행 중인 행사"인지 "그날 이후 시작하는 행사"인지 문서에 명확하지 않아, 두 경우 모두 대비해 3개월 앞부터 받도록 했습니다.
 - 지도 타일은 OpenStreetMap 공용 서버를 씁니다. 사용자가 많아지면 [타일 사용 정책](https://operations.osmfoundation.org/policies/tiles/)에 따라 카카오맵 API 같은 다른 지도로 바꾸는 것이 좋습니다.
 - 관광정보와 사진의 출처는 한국관광공사입니다. 화면에 출처 표시를 유지해 주세요.
+- 맛집 평점·메뉴는 카카오맵 장소 페이지가 쓰는 데이터를 읽어 옵니다(공식 공개 API 아님, 한끼 최저가와 같은 방식).
+  카카오가 형식을 바꾸면 평점이 빠질 수 있고, 그때는 "평점 낮은 곳도 보기"로 가게 목록은 볼 수 있습니다.
 
 ## 다음에 해 볼 만한 것
 

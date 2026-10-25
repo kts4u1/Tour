@@ -17,6 +17,7 @@ export function loadConfig(env = process.env) {
   return {
     port: Number(env.PORT) || 3000,
     serviceKey,
+    kakaoKey: String(env.KAKAO_REST_API_KEY || '').trim(),
     mode: serviceKey && !isTrue(env.DEMO_MODE) ? 'live' : 'demo',
     apiBase: String(env.TOUR_API_BASE || 'https://apis.data.go.kr/B551011/KorService2').replace(/\/+$/, ''),
     mobileApp: env.TOUR_API_APP_NAME || 'TourNearby',

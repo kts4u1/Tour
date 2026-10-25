@@ -4,12 +4,14 @@ import { initDetail } from './detail.js';
 import { initLocation, resolveInitialLocation } from './location.js';
 import { activateMonthly, initMonthly } from './monthly.js';
 import { activateNearby, initNearby } from './nearby.js';
+import { activateFood, initFood } from './food.js';
 import { state } from './state.js';
 import { categoryIcon, escapeHtml } from './util.js';
 
 const TABS = {
   nearby: activateNearby,
   monthly: activateMonthly,
+  food: activateFood,
 };
 
 function showTab(name) {
@@ -91,6 +93,7 @@ async function main() {
   initLocation();
   initNearby();
   initMonthly();
+  initFood();
   initTabs();
 
   showTab(location.hash.slice(1));

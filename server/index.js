@@ -3,6 +3,8 @@ import { loadConfig, loadEnvFile } from './config.js';
 import { createDemoSource } from './sources/demo.js';
 import { createLiveSource } from './sources/live.js';
 import { createTourApi } from './tourApi.js';
+import { createDemoFoodService } from './food/demo.js';
+import { createFoodService, createMemoryFoodCache } from './food/service.js';
 
 loadEnvFile();
 const config = loadConfig();
@@ -17,7 +19,11 @@ const source =
 
 await source.init({ warmup: config.warmup });
 
-const app = createApp({ source, rootDir: config.rootDir });
+const food = config.kakaoKey
+  ? createFoodService({ kakaoKey: config.kakaoKey, cache: createMemoryFoodCache() })
+  : createDemoFoodService();
+
+const app = createApp({ source, rootDir: config.rootDir, food });
 const server = app.listen(config.port, () => {
   console.log(`\n  어디갈까 서버가 실행되었습니다: http://localhost:${config.port}`);
   if (config.mode === 'demo') {

@@ -29,6 +29,7 @@
     <nav class="tabs" role="tablist" aria-label="화면 선택">
       <button type="button" role="tab" id="tab-nearby" data-tab="nearby" aria-controls="view-nearby" aria-selected="true">내 주변</button>
       <button type="button" role="tab" id="tab-monthly" data-tab="monthly" aria-controls="view-monthly" aria-selected="false">이달의 행사</button>
+      <button type="button" role="tab" id="tab-food" data-tab="food" aria-controls="view-food" aria-selected="false">주변 맛집</button>
     </nav>
   </header>
 
@@ -109,6 +110,40 @@
       </div>
 
       <div id="monthContent"></div>
+    </section>
+
+    <!-- 주변 맛집 -->
+    <section class="view" id="view-food" role="tabpanel" aria-labelledby="tab-food" hidden>
+      <div class="banner inline" id="foodDemoBanner" hidden>
+        <strong>예시 데이터</strong> 카카오 키가 설정되지 않아 예시 맛집을 보여주고 있어요.
+      </div>
+      <div class="panel filters">
+        <div class="segmented wide" id="foodKind" role="group" aria-label="종류">
+          <button type="button" data-kind="restaurant" aria-pressed="true">🍽️ 맛집</button>
+          <button type="button" data-kind="cafe" aria-pressed="false">☕ 카페</button>
+        </div>
+        <div class="filter-label">반경</div>
+        <div class="radius-group four" id="foodRadius" role="group" aria-label="반경 선택"></div>
+        <div class="chip-row" id="foodGroups" role="group" aria-label="음식 종류"></div>
+        <div class="toolbar">
+          <label class="select">
+            <span class="sr-only">정렬</span>
+            <select id="foodSort">
+              <option value="quality">맛집순</option>
+              <option value="distance">가까운 순</option>
+            </select>
+          </label>
+          <label class="check">
+            <input type="checkbox" id="foodShowAll">
+            <span>평점 낮은 곳도 보기</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="summary" id="foodSummary" aria-live="polite"></div>
+      <div class="card-list" id="foodList"></div>
+      <button type="button" class="more-button" id="foodMore" hidden>더 보기</button>
+      <p class="hint food-credit">평점·리뷰·메뉴: 카카오맵. 맛집 점수는 평점, 리뷰 수, "맛" 추천 수로 계산해요.</p>
     </section>
   </main>
 

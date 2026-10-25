@@ -134,11 +134,14 @@ const ICONS = {
   14: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M4 10h16M12 3 3 8v2h18V8Z"/><path d="M6 10v8M10 10v8M14 10v8M18 10v8"/></svg>',
   28: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="17" r="3.5"/><circle cx="18" cy="17" r="3.5"/><path d="M6 17 9.5 9h5l3.5 8M9.5 9 12 17M14 5h3l-2.5 4"/></svg>',
 };
+ICONS.food = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2v20M4 2v6a3 3 0 0 0 6 0V2M17 2c-2 0-3 2.5-3 6s1.5 5 3 5v9"/></svg>';
+ICONS.cafe = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h14v5a6 6 0 0 1-6 6H9a6 6 0 0 1-6-6Z"/><path d="M17 11h1.5a2.5 2.5 0 0 1 0 5H17M7 2.5c0 1.5 1 1.5 1 3M11 2.5c0 1.5 1 1.5 1 3"/></svg>';
 export function categoryIcon(typeId) {
   return ICONS[typeId] || ICONS[12];
 }
 
 export const ICON = {
+  star: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9Z"/></svg>',
   calendar: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
   pin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.6"/></svg>',
   route: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="5" r="2.5"/><path d="M8.5 19H15a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.5"/></svg>',

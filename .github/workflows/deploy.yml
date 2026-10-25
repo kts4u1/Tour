@@ -7,6 +7,7 @@
 #   TOUR_API_KEY            공공데이터포털 TourAPI 인증키
 #   CLOUDFLARE_API_TOKEN    Cloudflare API 토큰 ("Edit Cloudflare Workers" 템플릿)
 #   CLOUDFLARE_ACCOUNT_ID   Cloudflare 계정 ID
+#   KAKAO_REST_API_KEY      (선택) 카카오 REST API 키 - 주변 맛집 탭용. 없으면 예시 맛집으로 동작
 name: Cloudflare 배포
 
 on:
@@ -44,6 +45,7 @@ jobs:
       TOUR_API_KEY: ${{ secrets.TOUR_API_KEY }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
       WRANGLER_SEND_METRICS: 'false'
     steps:
       - uses: actions/checkout@v5
@@ -78,3 +80,7 @@ jobs:
 
       - name: Worker 에 TourAPI 인증키 저장 (상세 정보 조회용)
         run: printf '%s' "$TOUR_API_KEY" | npx wrangler secret put TOUR_API_KEY
+
+      - name: Worker 에 카카오 키 저장 (주변 맛집용, 등록된 경우만)
+        if: env.KAKAO_REST_API_KEY != ''
+        run: printf '%s' "$KAKAO_REST_API_KEY" | npx wrangler secret put KAKAO_REST_API_KEY

@@ -47,4 +47,6 @@ export const api = {
   festivals: (year, month, signal) =>
     engine ? local(engine.festivals(year, month), signal) : getJson(`/api/festivals?${qs({ year, month })}`, signal),
   detail: (id, typeId, signal) => getJson(`/api/detail/${encodeURIComponent(id)}?${qs({ typeId })}`, signal),
+  food: (params, signal) => getJson(`/api/food?${qs(params)}`, signal),
+  foodRatings: (ids, signal) => getJson(`/api/food/ratings?${qs({ ids: ids.join(',') })}`, signal),
 };
