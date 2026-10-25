@@ -1,0 +1,16 @@
+// Cloudflare Workers 설정
+// 배포: npm run cf:deploy  (GitHub Actions 가 자동으로 실행)
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tour-nearby",
+  "main": "worker/index.js",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    // npm run build:static 으로 만든 폴더
+    "directory": "./dist",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

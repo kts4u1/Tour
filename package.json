@@ -12,10 +12,16 @@
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "demo": "DEMO_MODE=1 node server/index.js",
-    "test": "node --test \"test/**/*.test.js\""
+    "test": "node --test \"test/**/*.test.js\"",
+    "build:static": "node scripts/build-static.js",
+    "cf:dev": "npm run build:static && wrangler dev",
+    "cf:deploy": "npm run build:static && wrangler deploy"
   },
   "dependencies": {
     "express": "^5.1.0",
     "leaflet": "^1.9.4"
+  },
+  "devDependencies": {
+    "wrangler": "^4.152.0"
   }
 }

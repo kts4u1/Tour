@@ -1,4 +1,13 @@
 // 서버 API 호출
+// Cloudflare 배포(정적 데이터) 모드에서는 반경 검색·월별 행사를 브라우저에서 계산하고,
+// 상세 정보만 서버(Worker)에 묻습니다.
+
+let engine = null;
+
+/** 정적 데이터 계산기를 쓰도록 설정 (staticEngine.js) */
+export function useStaticEngine(staticEngine) {
+  engine = staticEngine;
+}
 
 async function getJson(url, signal) {
   let res;
@@ -18,6 +27,13 @@ async function getJson(url, signal) {
   return data;
 }
 
+/** 계산이 끝나기 전에 취소된 요청은 결과를 버림 (더 최신 요청이 있다는 뜻) */
+async function local(promise, signal) {
+  const result = await promise;
+  if (signal?.aborted) throw new DOMException('취소됨', 'AbortError');
+  return result;
+}
+
 function qs(params) {
   const sp = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== null && v !== '') sp.set(k, v);
@@ -26,7 +42,9 @@ function qs(params) {
 
 export const api = {
   meta: () => getJson('/api/meta'),
-  nearby: (params, signal) => getJson(`/api/nearby?${qs(params)}`, signal),
-  festivals: (year, month, signal) => getJson(`/api/festivals?${qs({ year, month })}`, signal),
+  nearby: (params, signal) =>
+    engine ? local(engine.nearby(params), signal) : getJson(`/api/nearby?${qs(params)}`, signal),
+  festivals: (year, month, signal) =>
+    engine ? local(engine.festivals(year, month), signal) : getJson(`/api/festivals?${qs({ year, month })}`, signal),
   detail: (id, typeId, signal) => getJson(`/api/detail/${encodeURIComponent(id)}?${qs({ typeId })}`, signal),
 };

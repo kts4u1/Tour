@@ -1,5 +1,5 @@
 // 앱 시작점
-import { api } from './api.js';
+import { api, useStaticEngine } from './api.js';
 import { initDetail } from './detail.js';
 import { initLocation, resolveInitialLocation } from './location.js';
 import { activateMonthly, initMonthly } from './monthly.js';
@@ -73,7 +73,13 @@ async function main() {
     return;
   }
   state.today = state.meta.today;
-  document.getElementById('demoBanner').hidden = state.meta.mode !== 'demo';
+  document.getElementById('demoBanner').hidden = !state.meta.demo;
+
+  // Cloudflare 배포: 반경 검색·월별 행사를 브라우저에서 계산
+  if (state.meta.mode === 'static') {
+    const { createStaticEngine } = await import('./staticEngine.js');
+    useStaticEngine(createStaticEngine(state.meta));
+  }
 
   initDialogs();
   initDetail();

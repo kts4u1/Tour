@@ -5,10 +5,9 @@
 // 메모리와 디스크에 저장해 두고, 거리는 서버에서 직접 계산합니다.
 // 전국 목록이 준비되기 전에는 20km 이하 반경만 위치기반 조회로 응답합니다.
 import { MemoryCache, DiskCache } from '../cache.js';
-import { buildDetail } from '../detail.js';
+import { fetchDetail } from '../detail.js';
 import { normalizeFestival, normalizePlace, uniqueById } from '../normalize.js';
 import { PLACE_TYPES } from '../catalog.js';
-import { NotFoundError } from '../errors.js';
 
 const HOUR = 60 * 60 * 1000;
 const FESTIVAL_TTL = 6 * HOUR;
@@ -116,27 +115,7 @@ export function createLiveSource({ api, cacheDir, log = console }) {
     },
 
     getDetail(id, typeId) {
-      return memory.wrap(`detail:${id}`, DETAIL_TTL, async () => {
-        const commonReq = api.list('detailCommon2', { contentId: id }, { numOfRows: 1 });
-        const introReq = (tid) =>
-          api
-            .list('detailIntro2', { contentId: id, contentTypeId: tid }, { numOfRows: 1 })
-            .then((r) => r.items[0] || {})
-            .catch(() => ({}));
-
-        let common;
-        let intro;
-        if (typeId) {
-          [common, intro] = await Promise.all([commonReq, introReq(typeId)]);
-        } else {
-          common = await commonReq;
-          const tid = common.items[0]?.contenttypeid;
-          intro = tid ? await introReq(tid) : {};
-        }
-        const detail = common.items[0] && buildDetail(common.items[0], intro, typeId);
-        if (!detail) throw new NotFoundError('관광정보를 찾을 수 없습니다.');
-        return detail;
-      });
+      return memory.wrap(`detail:${id}`, DETAIL_TTL, () => fetchDetail(api, id, typeId));
     },
 
     status() {

@@ -1,10 +1,11 @@
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import express from 'express';
-import { CATEGORIES, CITIES, RADII_KM, SORTS, TYPE_LABELS, WHEN_FILTERS } from './catalog.js';
+import { CATEGORIES, RADII_KM, SORTS, WHEN_FILTERS } from './catalog.js';
 import { BadRequestError, NotFoundError } from './errors.js';
 import { todayKST } from './lib/dates.js';
-import { REGIONS } from './lib/regions.js';
+import { SECURITY_HEADERS } from './headers.js';
+import { metaPayload } from './meta.js';
 import { festivalsForMonth, findNearby } from './services.js';
 import { TourApiError } from './tourApi.js';
 
@@ -34,31 +35,21 @@ export function createApp({ source, rootDir, now = () => new Date() }) {
   app.set('etag', 'strong');
 
   app.use((req, res, next) => {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    res.setHeader(
-      'Content-Security-Policy',
-      "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; " +
-        "script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'",
-    );
+    for (const [name, value] of Object.entries(SECURITY_HEADERS)) res.setHeader(name, value);
     next();
   });
 
   const api = express.Router();
 
   api.get('/meta', (req, res) => {
-    res.json({
-      mode: source.mode,
-      today: todayKST(now()),
-      radii: RADII_KM,
-      categories: CATEGORIES,
-      whenFilters: WHEN_FILTERS,
-      sorts: SORTS,
-      typeLabels: TYPE_LABELS,
-      regions: REGIONS,
-      cities: CITIES,
-      dataStatus: source.status(),
-    });
+    res.json(
+      metaPayload({
+        mode: source.mode,
+        demo: source.mode === 'demo',
+        today: todayKST(now()),
+        dataStatus: source.status(),
+      }),
+    );
   });
 
   api.get('/nearby', async (req, res) => {

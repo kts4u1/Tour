@@ -64,11 +64,52 @@ npm start
 발급 직후에는 키가 반영되기까지 1~2시간 걸릴 수 있습니다.
 개발계정은 하루 호출 수에 제한이 있으니, 서비스를 공개하기 전에 공공데이터포털에서 운영계정 전환을 신청하세요.
 
+## Cloudflare 에 배포하기
+
+GitHub 에 push 하면 GitHub Actions 가 자동으로 Cloudflare Workers 에 배포합니다. 무료 플랜으로 충분합니다.
+
+### 처음 한 번만 하는 설정
+
+1. **Cloudflare 계정 ID 확인**: [Cloudflare 대시보드](https://dash.cloudflare.com) 로그인 › 왼쪽 메뉴 **Workers 및 Pages** › 오른쪽에 보이는 **계정 ID** 복사
+   (또는 대시보드 주소 `dash.cloudflare.com/` 뒤의 32자리 값)
+2. **API 토큰 만들기**: 오른쪽 위 프로필 › **내 프로필** › **API 토큰** › **토큰 생성** › **Cloudflare Workers 편집(Edit Cloudflare Workers)** 템플릿 **사용** › 계정 리소스에서 내 계정 선택 › **요약으로 계속** › **토큰 생성** › 토큰 복사 (한 번만 보여 줌)
+3. **GitHub Secrets 등록**: 저장소 **Settings › Secrets and variables › Actions › New repository secret** 에서 3개 등록
+
+   | Name | 값 |
+   | --- | --- |
+   | `TOUR_API_KEY` | 공공데이터포털 TourAPI 인증키 |
+   | `CLOUDFLARE_API_TOKEN` | 2번에서 만든 API 토큰 |
+   | `CLOUDFLARE_ACCOUNT_ID` | 1번의 계정 ID |
+
+4. **배포 실행**: 저장소 **Actions** 탭 › **Cloudflare 배포** › **Run workflow** (또는 기본 브랜치에 push)
+5. 배포가 끝나면 `https://tour-nearby.<내-서브도메인>.workers.dev` 주소로 접속합니다.
+   주소는 Actions 실행 기록의 "Cloudflare 에 배포" 단계 로그나 Cloudflare 대시보드 › Workers 및 Pages › tour-nearby 에서 볼 수 있습니다.
+   처음 Workers 를 쓰는 계정이면 대시보드에서 workers.dev 서브도메인을 먼저 정하라고 나올 수 있습니다.
+
+그 뒤로는 **매일 새벽 3시 41분(한국 시간)** 에 최신 행사 데이터로 자동 재배포됩니다.
+내 도메인을 쓰려면 Cloudflare 대시보드 › tour-nearby › 설정 › 도메인 및 경로에서 추가하세요.
+
+### Cloudflare 배포는 어떻게 동작하나요?
+
+Cloudflare Workers 에서는 위의 Node.js 서버를 그대로 돌릴 수 없어서 구조를 조금 바꿨습니다.
+
+```
+GitHub Actions (매일)                       Cloudflare
+  TOUR_API_KEY 로 전국 데이터 받기   ──>   dist/  화면 + 데이터 파일 (정적 파일, 무제한 무료)
+  npm run build:static                     worker/ /api/meta, /api/detail 만 처리 (인증키는 Worker 시크릿)
+```
+
+- 반경 검색과 월별 행사는 **브라우저가** 데이터 파일을 받아 계산합니다. 계산 코드는 Node 서버와 같습니다(`server/services.js`).
+- 상세 정보는 인증키가 필요해서 Worker 가 TourAPI 를 호출하고 24시간 캐시합니다.
+- 실제 데이터에서는 관광지 목록 파일이 수 MB 정도라 처음 열 때 몇 초 걸릴 수 있고, 그 뒤에는 브라우저에 캐시됩니다.
+- 내 PC 에서 Cloudflare 환경 그대로 시험하기: `npm run cf:dev` (http://localhost:8787).
+  인증키는 `.dev.vars` 파일에 `TOUR_API_KEY=...` 로 넣습니다(.gitignore 에 포함됨).
+
 ## 휴대폰에서 사용하기
 
 - **현재 위치(GPS)는 https 주소에서만** 동작합니다(브라우저 보안 정책, localhost 는 예외).
   - 같은 Wi-Fi 의 휴대폰에서 `http://PC의IP:3000` 으로 접속하면 화면은 보이지만 GPS 대신 도시 선택을 써야 합니다.
-  - https 로 쓰려면 Render, Railway, Fly.io 같은 곳에 배포하거나 `cloudflared tunnel --url http://localhost:3000` 같은 터널을 사용하세요.
+  - Cloudflare 에 배포하면 https 주소가 생기므로 GPS 를 쓸 수 있습니다.
 - 휴대폰 브라우저 메뉴에서 **홈 화면에 추가**를 누르면 앱처럼 설치됩니다.
 
 ## 동작 방식
@@ -87,7 +128,7 @@ npm start
 - 캐시: 행사 목록 6시간, 전국 관광지 목록 3일(디스크 저장), 상세 정보 24시간.
   TourAPI 가 잠시 실패해도 이전에 받은 데이터가 있으면 그것을 보여 줍니다.
 
-## 서버 API
+## 서버 API (Node 서버)
 
 | 주소 | 설명 |
 | --- | --- |
@@ -130,6 +171,11 @@ public/
   js/detail.js      상세 화면
   js/map.js         지도 (Leaflet + OpenStreetMap)
   js/location.js    현재 위치 · 도시 선택
+worker/index.js     Cloudflare Worker (/api/meta, /api/detail)
+scripts/build-static.js  Cloudflare 배포용 dist/ 만들기 (데이터 받기)
+public/js/staticEngine.js  Cloudflare 모드에서 브라우저 계산
+wrangler.jsonc      Cloudflare 설정
+.github/workflows/deploy.yml  자동 배포
 test/               자동 테스트 (가짜 TourAPI 서버 포함)
 ```
 

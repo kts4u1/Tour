@@ -1,0 +1,74 @@
+# Cloudflare 배포
+# - 기본 브랜치에 push 하면: 테스트 → TourAPI 에서 전국 관광지·행사 데이터 받기 → Cloudflare 에 배포
+# - 매일 새벽 자동 실행: 최신 행사 데이터로 다시 배포
+# - Actions 탭에서 "Run workflow" 로 직접 실행도 가능
+#
+# 필요한 GitHub Secrets (Settings › Secrets and variables › Actions)
+#   TOUR_API_KEY            공공데이터포털 TourAPI 인증키
+#   CLOUDFLARE_API_TOKEN    Cloudflare API 토큰 ("Edit Cloudflare Workers" 템플릿)
+#   CLOUDFLARE_ACCOUNT_ID   Cloudflare 계정 ID
+name: Cloudflare 배포
+
+on:
+  push:
+  schedule:
+    - cron: '41 18 * * *' # 매일 한국 시간 새벽 3시 41분
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-deploy
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  deploy:
+    needs: test
+    # push 는 기본 브랜치일 때만 배포 (예약 실행·직접 실행은 기본 브랜치에서 돎)
+    if: github.event_name != 'push' || github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TOUR_API_KEY: ${{ secrets.TOUR_API_KEY }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: 시크릿 확인
+        run: |
+          missing=""
+          [ -z "$TOUR_API_KEY" ] && missing="$missing TOUR_API_KEY"
+          [ -z "$CLOUDFLARE_API_TOKEN" ] && missing="$missing CLOUDFLARE_API_TOKEN"
+          [ -z "$CLOUDFLARE_ACCOUNT_ID" ] && missing="$missing CLOUDFLARE_ACCOUNT_ID"
+          if [ -n "$missing" ]; then
+            echo "::error::GitHub 저장소 Settings › Secrets and variables › Actions 에 다음 시크릿을 등록하세요:$missing"
+            exit 1
+          fi
+
+      - name: 관광 데이터 받기 (dist/ 만들기)
+        run: npm run build:static -- --require-key
+
+      - name: Cloudflare 에 배포
+        run: npx wrangler deploy
+
+      - name: Worker 에 TourAPI 인증키 저장 (상세 정보 조회용)
+        run: printf '%s' "$TOUR_API_KEY" | npx wrangler secret put TOUR_API_KEY

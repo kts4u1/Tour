@@ -3,6 +3,7 @@ import { isYmd } from './lib/dates.js';
 import { extractLinks, htmlToText } from './lib/text.js';
 import { normalizePlace } from './normalize.js';
 import { TYPE_LABELS } from './catalog.js';
+import { NotFoundError } from './errors.js';
 
 // 관광타입별 소개정보(detailIntro2) 필드와 화면에 보여줄 이름
 const INTRO_FIELDS = {
@@ -56,4 +57,27 @@ export function buildDetail(common, intro = {}, typeIdHint = '') {
     start: isYmd(start) ? start : null,
     end: isYmd(end) ? end : isYmd(start) ? start : null,
   };
+}
+
+/** TourAPI 에서 상세 정보(공통정보 + 소개정보)를 받아 화면용으로 만듭니다. */
+export async function fetchDetail(api, id, typeId = '') {
+  const commonReq = api.list('detailCommon2', { contentId: id }, { numOfRows: 1 });
+  const introReq = (tid) =>
+    api
+      .list('detailIntro2', { contentId: id, contentTypeId: tid }, { numOfRows: 1 })
+      .then((r) => r.items[0] || {})
+      .catch(() => ({}));
+
+  let common;
+  let intro;
+  if (typeId) {
+    [common, intro] = await Promise.all([commonReq, introReq(typeId)]);
+  } else {
+    common = await commonReq;
+    const tid = common.items[0]?.contenttypeid;
+    intro = tid ? await introReq(tid) : {};
+  }
+  const detail = common.items[0] && buildDetail(common.items[0], intro, typeId);
+  if (!detail) throw new NotFoundError('관광정보를 찾을 수 없습니다.');
+  return detail;
 }
