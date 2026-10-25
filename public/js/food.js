@@ -38,11 +38,13 @@ const fmtM = (m) => (m < 1000 ? `${m}m` : `${(m / 1000).toFixed(m < 10000 ? 1 : 
 const fmtWon = (n) => (n ? `${n.toLocaleString()}원` : '');
 const isCafe = () => prefs.kind === 'cafe';
 
+// 받은 시각은 한국 시간으로 표시
+const KST = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 function fmtTime(ms) {
-  const d = new Date(ms);
-  const sameDay = d.toDateString() === new Date().toDateString();
-  const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  return sameDay ? `오늘 ${hm}` : `${d.getMonth() + 1}/${d.getDate()} ${hm}`;
+  const parts = Object.fromEntries(KST.formatToParts(new Date(ms)).map((p) => [p.type, p.value]));
+  const today = Object.fromEntries(KST.formatToParts(new Date()).map((p) => [p.type, p.value]));
+  const hm = `${parts.hour}:${parts.minute}`;
+  return parts.month === today.month && parts.day === today.day ? `오늘 ${hm}` : `${parts.month}/${parts.day} ${hm}`;
 }
 
 function setPressed(container, attr, value) {
