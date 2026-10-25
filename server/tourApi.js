@@ -109,6 +109,7 @@ export function createTourApi({
   fetchImpl = globalThis.fetch,
   timeoutMs = 20000,
   retries = 1,
+  retryDelayMs = 1000,
 }) {
   const key = normalizeServiceKey(serviceKey);
 
@@ -121,6 +122,8 @@ export function createTourApi({
 
     let lastError;
     for (let attempt = 0; attempt <= retries; attempt++) {
+      // 다시 시도할 때는 조금 기다렸다가 (1초, 2초, 4초 …)
+      if (attempt > 0) await new Promise((r) => setTimeout(r, retryDelayMs * 2 ** (attempt - 1)));
       try {
         const res = await fetchImpl(url, {
           headers: { Accept: 'application/json' },

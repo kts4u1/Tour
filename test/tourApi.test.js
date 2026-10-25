@@ -82,7 +82,7 @@ test('네트워크 오류는 한 번 재시도', async () => {
     if (n === 1) throw new Error('ECONNRESET');
     return new Response(ok({ item: { a: 1 } }), { status: 200 });
   };
-  const api = createTourApi({ serviceKey: 'k', apiBase: 'https://example.test', fetchImpl });
+  const api = createTourApi({ serviceKey: 'k', apiBase: 'https://example.test', fetchImpl, retryDelayMs: 1 });
   const res = await api.list('areaCode2');
   assert.equal(res.items.length, 1);
   assert.equal(n, 2);

@@ -49,7 +49,8 @@ async function writeJson(file, data) {
 }
 
 async function loadLiveData() {
-  const api = createTourApi({ serviceKey: config.serviceKey, apiBase: config.apiBase, mobileApp: config.mobileApp });
+  // GitHub Actions 에서 잠깐 연결이 끊겨도 배포가 실패하지 않도록 여러 번 다시 시도
+  const api = createTourApi({ serviceKey: config.serviceKey, apiBase: config.apiBase, mobileApp: config.mobileApp, retries: 4, retryDelayMs: 3000 });
   console.log(`TourAPI 에서 ${festivalsFrom} 이후 행사를 받는 중...`);
   const festivals = uniqueById(
     (await api.listAll('searchFestival2', { eventStartDate: festivalsFrom, arrange: 'A' }, { pageSize: 500 })).map(normalizeFestival),
