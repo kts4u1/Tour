@@ -60,3 +60,25 @@ export function cafeInfo(category = '') {
   const label = franchise ? '커피전문점' : parts[2] || parts.at(-1) || '카페';
   return { label, franchise };
 }
+
+// 숙소 종류 (카카오 카테고리 "숙박 > 호텔 > 특급호텔" 과 이름으로 판단)
+const STAY_TYPES = [
+  { label: '한옥', test: /한옥/ },
+  { label: '캠핑·글램핑', test: /캠핑|글램핑|카라반|야영/ },
+  { label: '게스트하우스', test: /게스트\s*하우스|호스텔|guest\s*house|hostel/i },
+  { label: '리조트·콘도', test: /리조트|콘도/ },
+  { label: '펜션·민박', test: /펜션|민박|풀빌라|독채/ },
+  { label: '모텔', test: /모텔|여관|여인숙/ },
+  { label: '호텔', test: /호텔|hotel/i },
+];
+
+export function stayInfo(category = '', name = '') {
+  const parts = String(category).split('>').map((s) => s.trim()).filter(Boolean);
+  const detail = parts.slice(1).join(' '); // "숙박" 다음 단계
+  // 카테고리가 구체적이면 카테고리로 (이름에 "호텔"이 붙은 모텔이 많아서), 아니면 이름으로
+  // 한옥은 이름에만 있어도 한옥으로 (한옥 게스트하우스 등, 여행객에게 중요한 정보라서)
+  if (/한옥/.test(`${detail} ${name}`)) return { label: '한옥' };
+  const byCategory = detail && STAY_TYPES.find((t) => t.test.test(detail));
+  const type = byCategory || STAY_TYPES.find((t) => t.test.test(name));
+  return { label: type ? type.label : '숙박' };
+}

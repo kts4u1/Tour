@@ -11,6 +11,11 @@ const CAFES = [
   ['베이커리 숲', '제과,베이커리'], ['루프탑 카페', '카페'], ['빙수 하우스', '디저트카페'], ['책방 카페', '카페'],
 ];
 
+const STAYS = [
+  ['바다 전망 호텔', '호텔'], ['한옥 스테이', '한옥'], ['숲속 펜션', '펜션·민박'], ['시내 게스트하우스', '게스트하우스'],
+  ['호수 리조트', '리조트·콘도'], ['역 앞 모텔', '모텔'], ['별빛 글램핑', '캠핑·글램핑'], ['비즈니스 호텔', '호텔'],
+];
+
 // 위치마다 늘 같은 결과가 나오도록 하는 간단한 난수
 function seeded(seed) {
   let x = Math.sin(seed) * 10000;
@@ -21,18 +26,18 @@ function seeded(seed) {
 }
 
 function demoPlaces(lat, lng, radiusM, kind) {
-  const list = kind === 'cafe' ? CAFES : RESTAURANTS;
-  const rand = seeded(Math.round(lat * 1000) * 7 + Math.round(lng * 1000) + (kind === 'cafe' ? 3 : 0));
+  const list = kind === 'stay' ? STAYS : kind === 'cafe' ? CAFES : RESTAURANTS;
+  const rand = seeded(Math.round(lat * 1000) * 7 + Math.round(lng * 1000) + (kind === 'stay' ? 5 : kind === 'cafe' ? 3 : 0));
   return list.map(([name, label], i) => {
     const dist = (0.15 + rand() * 0.8) * radiusM;
     const angle = rand() * Math.PI * 2;
     const plat = lat + (dist * Math.cos(angle)) / 111000;
     const plng = lng + (dist * Math.sin(angle)) / (111000 * Math.cos((lat * Math.PI) / 180));
     return {
-      id: String(800000 + (kind === 'cafe' ? 100 : 0) + i),
+      id: String(800000 + (kind === 'stay' ? 200 : kind === 'cafe' ? 100 : 0) + i),
       name: `${name} (예시)`,
       kind,
-      group: kind === 'cafe' ? 'cafe' : label,
+      group: kind === 'restaurant' ? label : kind,
       label,
       category: `음식점 > ${label}`,
       address: '예시 주소',

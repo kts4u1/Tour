@@ -4,12 +4,21 @@
 import { api } from './api.js';
 import { openFoodDetail } from './detail.js';
 import { onLocationChange, state } from './state.js';
-import { ICON, categoryIcon, escapeHtml, storage } from './util.js';
+import { FOOD_KIND, ICON, categoryIcon, escapeHtml, josa, storage } from './util.js';
 
 const PAGE_SIZE = 30;
 const RECOMMEND_MIN = 3.85; // server/food/ranking.js 의 RECOMMEND_MIN_SCORE 와 같게
 
-const prefs = { kind: 'restaurant', radius: 1000, sort: 'quality', showAll: false, ...storage.get('foodPrefs', {}) };
+const saved = storage.get('foodPrefs', {});
+const prefs = { kind: 'restaurant', radius: 1000, sort: 'quality', ...saved };
+// "평점 낮은 곳도 보기"는 종류마다 따로 기억 (숙소는 기본으로 켬)
+prefs.showAllByKind = {
+  ...Object.fromEntries(Object.entries(FOOD_KIND).map(([k, v]) => [k, v.showAll])),
+  ...(typeof saved.showAll === 'boolean' ? { restaurant: saved.showAll, cafe: saved.showAll } : {}),
+  ...(saved.showAllByKind || {}),
+};
+delete prefs.showAll;
+if (!FOOD_KIND[prefs.kind]) prefs.kind = 'restaurant';
 let group = 'all';
 let candidates = [];
 const ratings = new Map(); // id -> 평점 정보 (null = 정보 없음)
@@ -36,7 +45,8 @@ const els = {
 const savePrefs = () => storage.set('foodPrefs', prefs);
 const fmtM = (m) => (m < 1000 ? `${m}m` : `${(m / 1000).toFixed(m < 10000 ? 1 : 0)}km`);
 const fmtWon = (n) => (n ? `${n.toLocaleString()}원` : '');
-const isCafe = () => prefs.kind === 'cafe';
+const kindText = () => FOOD_KIND[prefs.kind];
+const showAll = () => Boolean(prefs.showAllByKind[prefs.kind]);
 
 // 받은 시각은 한국 시간으로 표시
 const KST = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
@@ -64,8 +74,8 @@ function syncControls() {
   setPressed(els.kind, 'data-kind', prefs.kind);
   setPressed(els.radius, 'data-radius', prefs.radius);
   els.sort.value = prefs.sort;
-  els.sort.options[0].textContent = isCafe() ? '추천순' : '맛집순';
-  els.showAll.checked = prefs.showAll;
+  els.sort.options[0].textContent = kindText().sort;
+  els.showAll.checked = showAll();
 }
 
 /** 화면에 보일 목록 (필터·정렬 적용) */
@@ -76,7 +86,7 @@ function visibleItems() {
     const item = { ...place, info: info === undefined ? undefined : info };
     if (info?.closed) continue; // 폐업
     const recommended = info && info.quality != null && info.quality >= RECOMMEND_MIN;
-    if (!prefs.showAll && !recommended) continue;
+    if (!showAll() && !recommended) continue;
     items.push(item);
   }
   const groupCounts = new Map();
@@ -126,16 +136,16 @@ function openBadge(info) {
 
 function cardHtml(item) {
   const info = item.info;
-  const menu = (info?.menu || []).filter((m) => m.price).slice(0, 2);
-  const icon = isCafe() ? 'cafe' : 'food';
+  const menu = prefs.kind === 'stay' ? [] : (info?.menu || []).filter((m) => m.price).slice(0, 2);
+  const icon = kindText().icon;
   return `
     <article class="card food-card" role="button" tabindex="0" data-id="${escapeHtml(item.id)}" aria-label="${escapeHtml(item.name)} 자세히 보기">
       <div class="thumb ph ph-${icon}">${categoryIcon(icon)}</div>
       <div class="card-body">
         <div class="card-badges">
           <span class="badge cat-${icon}">${escapeHtml(item.label)}</span>
-          ${info?.tasty ? `<span class="badge tasty">${isCafe() ? '인기 카페' : '맛집'}</span>` : ''}
-          ${openBadge(info)}
+          ${info?.tasty ? `<span class="badge tasty">${kindText().tasty}</span>` : ''}
+          ${prefs.kind === 'stay' ? '' : openBadge(info)}
         </div>
         <h3 class="card-title">${escapeHtml(item.name)}</h3>
         <p class="card-meta rating"><span>${ratingLine(info)}</span></p>
@@ -154,14 +164,14 @@ function render() {
   for (const it of items) byId.set(it.id, it);
 
   const loading = ratingProgress.done < ratingProgress.total;
-  const what = isCafe() ? '추천 카페' : '맛집';
+  const what = kindText().what;
   const radiusText = prefs.radius < 1000 ? `${prefs.radius}m` : `${prefs.radius / 1000}km`;
   const where = `<strong>${escapeHtml(state.location.label)}</strong> 기준 ${radiusText} 안`;
   if (loading) {
-    els.summary.innerHTML = `${where}에서 ${what}을 찾는 중이에요… <span class="muted">(평점 확인 ${ratingProgress.done}/${ratingProgress.total})</span>`;
+    els.summary.innerHTML = `${where}에서 ${josa(what, '을', '를')} 찾는 중이에요… <span class="muted">(평점 확인 ${ratingProgress.done}/${ratingProgress.total})</span>`;
   } else {
     els.summary.innerHTML = `${where}에서 ${what} <strong>${total}곳</strong>을 찾았어요${
-      prefs.showAll ? '' : ' <span class="muted">(카카오맵 평점이 좋은 곳만)</span>'
+      showAll() ? ' <span class="muted">(카카오맵 평점 높은 순)</span>' : ' <span class="muted">(카카오맵 평점이 좋은 곳만)</span>'
     }${areaInfo?.fetchedAt ? `<br><span class="muted data-time">카카오맵 데이터 기준: ${escapeHtml(fmtTime(areaInfo.fetchedAt))}${areaInfo.stale ? ' (새로 받지 못해 이전 데이터)' : ''}</span>` : ''}`;
   }
 
@@ -170,7 +180,7 @@ function render() {
       els.list.innerHTML = skeleton();
     } else {
       const next = (state.meta.foodRadii || []).find((r) => r > prefs.radius);
-      els.list.innerHTML = `<div class="empty"><strong>이 반경 안에는 평점 좋은 ${what}이 없어요</strong>반경을 넓히거나 "평점 낮은 곳도 보기"를 켜 보세요.${
+      els.list.innerHTML = `<div class="empty"><strong>${showAll() ? `이 반경 안에는 ${josa(what, '이', '가')} 없어요` : `이 반경 안에는 평점 좋은 ${josa(what, '이', '가')} 없어요`}</strong>${showAll() ? '반경을 넓혀 보세요.' : '반경을 넓히거나 "평점 낮은 곳도 보기"를 켜 보세요.'}${
         next ? `<br><button type="button" class="text-button" data-widen="${next}">${next < 1000 ? `${next}m` : `${next / 1000}km`}로 넓히기</button>` : ''
       }</div>`;
     }
@@ -278,7 +288,9 @@ export function initFood() {
     render();
   });
   els.sort.addEventListener('change', () => update({ sort: els.sort.value }, { reload: false }));
-  els.showAll.addEventListener('change', () => update({ showAll: els.showAll.checked }, { reload: false }));
+  els.showAll.addEventListener('change', () =>
+    update({ showAllByKind: { ...prefs.showAllByKind, [prefs.kind]: els.showAll.checked } }, { reload: false }),
+  );
   els.more.addEventListener('click', () => {
     shown += PAGE_SIZE;
     render();

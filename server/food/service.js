@@ -14,7 +14,7 @@ const HOUR = 60 * 60 * 1000;
 export const AREA_FRESH_MS = 12 * HOUR;
 export const RATING_FRESH_MS = 24 * HOUR;
 export const FOOD_RADII_M = [1000, 3000, 5000, 10000];
-export const FOOD_KINDS = ['restaurant', 'cafe'];
+export const FOOD_KINDS = ['restaurant', 'cafe', 'stay'];
 // 평점을 확인하는 후보 수 (인기순 앞쪽부터)와 인기 맛집을 찾는 칸 나누기 (넓은 반경은 영역을 나눠 고르게)
 export const MAX_RATED_BY_RADIUS = { 1000: 40, 3000: 56, 5000: 72, 10000: 80 };
 // (Cloudflare 무료 플랜: 요청 한 번에 바깥 호출 50번까지 → 3×3 칸 × 3쪽 + 2 = 29번)
@@ -24,7 +24,7 @@ export const RATING_BATCH = 8; // 한 번에 확인하는 수 (Cloudflare 무료
 // 반경별 격자 칸 크기(도). 같은 칸에서 찾는 사람은 같은 데이터를 함께 씁니다.
 const CELL_DEG = { 1000: 0.004, 3000: 0.01, 5000: 0.02, 10000: 0.04 };
 
-export const AREA_KEY_RE = /^v3:(restaurant|cafe):(1000|3000|5000|10000):-?\d{1,3}\.\d{3}:-?\d{1,3}\.\d{3}$/;
+export const AREA_KEY_RE = /^v3:(restaurant|cafe|stay):(1000|3000|5000|10000):-?\d{1,3}\.\d{3}:-?\d{1,3}\.\d{3}$/;
 
 export function areaOf(lat, lng, radiusM, kind) {
   const size = CELL_DEG[radiusM];

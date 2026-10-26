@@ -18,6 +18,7 @@
   --c28: #c2410c; --c28-bg: #ffedd5;
   --cfood: #ea580c; --cfood-bg: #ffedd5;
   --ccafe: #92400e; --ccafe-bg: #fdf0dc;
+  --cstay: #4338ca; --cstay-bg: #e0e7ff;
   --star: #f59e0b;
 
   --ongoing: #15803d; --ongoing-bg: #dcfce7;
@@ -52,6 +53,7 @@
     --c28: #fb923c; --c28-bg: #45210f;
     --cfood: #fb923c; --cfood-bg: #45210f;
     --ccafe: #fbbf24; --ccafe-bg: #3d2a10;
+    --cstay: #a5b4fc; --cstay-bg: #24245a;
     --ongoing: #4ade80; --ongoing-bg: #0f3a22;
     --upcoming: #60a5fa; --upcoming-bg: #172a54;
     --ended: #94a3b8; --ended-bg: #1e293b;
@@ -447,7 +449,9 @@ html:has(dialog[open]) body, html.dialog-open body { overflow: hidden; }
 .radius-group.four { grid-template-columns: repeat(4, 1fr); }
 .cat-food { color: var(--cfood); background: var(--cfood-bg); }
 .cat-cafe { color: var(--ccafe); background: var(--ccafe-bg); }
+.cat-stay { color: var(--cstay); background: var(--cstay-bg); }
 .ph-food { background: linear-gradient(135deg, var(--cfood-bg), color-mix(in srgb, var(--cfood-bg) 60%, var(--surface))); color: var(--cfood); }
+.ph-stay { background: linear-gradient(135deg, var(--cstay-bg), color-mix(in srgb, var(--cstay-bg) 60%, var(--surface))); color: var(--cstay); }
 .ph-cafe { background: linear-gradient(135deg, var(--ccafe-bg), color-mix(in srgb, var(--ccafe-bg) 60%, var(--surface))); color: var(--ccafe); }
 .badge.tasty { color: #fff; background: var(--cfood); }
 .star { display: inline-flex; align-items: center; gap: 2px; color: var(--text); }
@@ -462,3 +466,4 @@ html:has(dialog[open]) body, html.dialog-open body { overflow: hidden; }
 .food-credit { margin-top: 14px; }
 .menu-list div { grid-template-columns: 1fr auto; }
 .menu-list dd { font-weight: 700; white-space: nowrap; }
+.actions.two { grid-template-columns: 1fr 1fr; margin-top: 10px; }

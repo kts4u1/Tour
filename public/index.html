@@ -29,7 +29,7 @@
     <nav class="tabs" role="tablist" aria-label="화면 선택">
       <button type="button" role="tab" id="tab-nearby" data-tab="nearby" aria-controls="view-nearby" aria-selected="true">내 주변</button>
       <button type="button" role="tab" id="tab-monthly" data-tab="monthly" aria-controls="view-monthly" aria-selected="false">이달의 행사</button>
-      <button type="button" role="tab" id="tab-food" data-tab="food" aria-controls="view-food" aria-selected="false">주변 맛집</button>
+      <button type="button" role="tab" id="tab-food" data-tab="food" aria-controls="view-food" aria-selected="false">맛집·숙소</button>
     </nav>
   </header>
 
@@ -113,15 +113,16 @@
       <div id="monthContent"></div>
     </section>
 
-    <!-- 주변 맛집 -->
+    <!-- 맛집·숙소 -->
     <section class="view" id="view-food" role="tabpanel" aria-labelledby="tab-food" hidden>
       <div class="banner inline" id="foodDemoBanner" hidden>
-        <strong>예시 데이터</strong> 카카오 키가 설정되지 않아 예시 맛집을 보여주고 있어요.
+        <strong>예시 데이터</strong> 카카오 키가 설정되지 않아 예시 데이터를 보여주고 있어요.
       </div>
       <div class="panel filters">
         <div class="segmented wide" id="foodKind" role="group" aria-label="종류">
           <button type="button" data-kind="restaurant" aria-pressed="true">🍽️ 맛집</button>
           <button type="button" data-kind="cafe" aria-pressed="false">☕ 카페</button>
+          <button type="button" data-kind="stay" aria-pressed="false">🏨 숙소</button>
         </div>
         <div class="filter-label">반경</div>
         <div class="radius-group four" id="foodRadius" role="group" aria-label="반경 선택"></div>

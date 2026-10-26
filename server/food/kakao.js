@@ -2,7 +2,7 @@
 // 한끼 최저가 앱(kts4u1/Restaurant)의 src/providers/kakaoLocal.js, kakaoPlace.js 를 바탕으로
 // 관광객용 "주변 맛집"에 맞게 줄였습니다 (최저가 계산 없음).
 import { distanceKm } from '../lib/geo.js';
-import { EXCLUDED_FOR_TOUR, cafeInfo, classify } from './categories.js';
+import { EXCLUDED_FOR_TOUR, cafeInfo, classify, stayInfo } from './categories.js';
 
 export class KakaoApiError extends Error {
   constructor(message, status = 0) {
@@ -25,10 +25,12 @@ async function fetchWithTimeout(fetchImpl, url, init, ms) {
   return fetchImpl(url, { ...init, signal: AbortSignal.timeout(ms) });
 }
 
-// 종류별 검색: 인기(정확도순) 키워드 검색 + 가까운 순 카테고리 검색
+// 종류별 검색: 인기(정확도순) 검색 + 가까운 순 카테고리 검색
+// 숙소는 "맛집" 같은 키워드가 없어서 카테고리(AD5) 자체를 정확도순으로 찾습니다.
 const KINDS = {
   restaurant: { code: 'FD6', keyword: '맛집' },
   cafe: { code: 'CE7', keyword: '카페' },
+  stay: { code: 'AD5', keyword: null },
 };
 
 export function toFoodPlace(doc, kind, lat, lng) {
@@ -38,7 +40,11 @@ export function toFoodPlace(doc, kind, lat, lng) {
   const category = doc.category_name || '';
   let label;
   let group;
-  if (kind === 'cafe') {
+  if (kind === 'stay') {
+    if (doc.category_group_code && doc.category_group_code !== 'AD5') return null;
+    label = stayInfo(category, doc.place_name).label;
+    group = 'stay';
+  } else if (kind === 'cafe') {
     const info = cafeInfo(category);
     if (info.franchise) return null; // 프랜차이즈 커피점은 추천 카페에서 뺌
     label = info.label;
@@ -132,7 +138,9 @@ export function createKakaoLocal({ apiKey, baseUrl = 'https://dapi.kakao.com', f
       Array.from({ length: Math.min(4, areas.length) }, async () => {
         while (next < areas.length) {
           const i = next++;
-          popularLists[i] = await pages(KEYWORD, { ...areas[i], query: conf.keyword, category_group_code: conf.code, sort: 'accuracy' }, 3);
+          popularLists[i] = conf.keyword
+            ? await pages(KEYWORD, { ...areas[i], query: conf.keyword, category_group_code: conf.code, sort: 'accuracy' }, 3)
+            : await pages(CATEGORY, { ...areas[i], category_group_code: conf.code, sort: 'accuracy' }, 3);
         }
       }),
     );

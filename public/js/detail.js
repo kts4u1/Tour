@@ -2,7 +2,7 @@
 import { api } from './api.js';
 import { state } from './state.js';
 import {
-  ICON, addDays, categoryIcon, distanceKm, durationText, escapeHtml, fmtDistance, fmtRange, safeUrl, statusInfo, toast,
+  FOOD_KIND, ICON, addDays, categoryIcon, distanceKm, durationText, escapeHtml, fmtDistance, fmtRange, safeUrl, statusInfo, toast,
 } from './util.js';
 
 const dialog = document.getElementById('detailDialog');
@@ -124,14 +124,16 @@ export function openDetail(item) {
 export function openFoodDetail(item) {
   controller?.abort();
   const info = item.info || null;
-  const icon = item.kind === 'cafe' ? 'cafe' : 'food';
+  const kind = FOOD_KIND[item.kind] || FOOD_KIND.restaurant;
+  const icon = kind.icon;
+  const isStay = item.kind === 'stay';
   current = { title: item.name, addr: item.address };
   const r = info?.rating;
   const ratingParts = [];
   if (r?.score != null) ratingParts.push(`<b class="star">${ICON.star}${r.score.toFixed(1)}</b>`);
   if (r?.count) ratingParts.push(`리뷰 ${r.count.toLocaleString()}개`);
   if (r?.blog) ratingParts.push(`블로그 리뷰 ${r.blog.toLocaleString()}개`);
-  if (r?.taste) ratingParts.push(`"맛" 추천 ${r.taste.toLocaleString()}`);
+  if (r?.taste && !isStay) ratingParts.push(`"맛" 추천 ${r.taste.toLocaleString()}`);
 
   const name = encodeURIComponent(String(item.name).replace(/,/g, ' '));
   const placeUrl = safeUrl(item.url);
@@ -144,14 +146,14 @@ export function openFoodDetail(item) {
     `<button type="button" data-action="share">${ICON.share}공유</button>`,
   ].join('');
 
-  const open = info?.open;
+  const open = isStay ? null : info?.open; // 숙소는 영업시간 대신 체크인 정보가 중요해서 표시하지 않음
   const menu = info?.menu || [];
   body.innerHTML = `
     <div class="detail-hero short ph ph-${icon}">${categoryIcon(icon)}</div>
     <div class="detail-content">
       <div class="card-badges">
         <span class="badge cat-${icon}">${escapeHtml(item.label)}</span>
-        ${info?.tasty ? `<span class="badge tasty">${item.kind === 'cafe' ? '인기 카페' : '맛집'}</span>` : ''}
+        ${info?.tasty ? `<span class="badge tasty">${kind.tasty}</span>` : ''}
         ${open?.text ? `<span class="badge ${open.code === 'OPEN' ? 'st-ongoing' : 'st-ended'}">${escapeHtml(open.text)}</span>` : ''}
       </div>
       <h2 id="detailTitle">${escapeHtml(item.name)}</h2>
@@ -162,10 +164,14 @@ export function openFoodDetail(item) {
         ${open.today ? `<div><dt>오늘</dt><dd>${escapeHtml(open.today)}</dd></div>` : ''}
         ${open.text || open.info ? `<div><dt>지금</dt><dd>${escapeHtml([open.text, open.info].filter(Boolean).join(' · '))}</dd></div>` : ''}
       </dl></section>` : ''}
-      ${menu.length ? `<section class="detail-section"><h3>메뉴</h3><dl class="info-list menu-list">${menu
+      ${isStay ? `<section class="detail-section"><h3>가격·예약</h3><p class="hint">실시간 가격과 빈방은 예약 사이트에서 확인하세요.</p><div class="actions two">
+        <a href="https://search.naver.com/search.naver?query=${encodeURIComponent(item.name)}" target="_blank" rel="noopener">네이버에서 가격 보기</a>
+        <a href="https://www.google.com/search?q=${encodeURIComponent(`${item.name} 숙박 가격`)}" target="_blank" rel="noopener">구글에서 가격 보기</a>
+      </div></section>` : ''}
+      ${menu.length && !isStay ? `<section class="detail-section"><h3>메뉴</h3><dl class="info-list menu-list">${menu
         .map((m) => `<div><dt>${escapeHtml(m.name)}</dt><dd>${m.price ? `${m.price.toLocaleString()}원` : ''}</dd></div>`)
         .join('')}</dl></section>` : ''}
-      <p class="credit">평점·리뷰·메뉴·영업시간: 카카오맵. 바뀔 수 있으니 방문 전 확인하세요.</p>
+      <p class="credit">${isStay ? '평점·리뷰: 카카오맵.' : '평점·리뷰·메뉴·영업시간: 카카오맵. 바뀔 수 있으니 방문 전 확인하세요.'}</p>
     </div>`;
   if (!dialog.open) dialog.showModal();
   dialog.scrollTop = 0;

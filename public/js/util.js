@@ -136,6 +136,7 @@ const ICONS = {
 };
 ICONS.food = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2v20M4 2v6a3 3 0 0 0 6 0V2M17 2c-2 0-3 2.5-3 6s1.5 5 3 5v9"/></svg>';
 ICONS.cafe = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h14v5a6 6 0 0 1-6 6H9a6 6 0 0 1-6-6Z"/><path d="M17 11h1.5a2.5 2.5 0 0 1 0 5H17M7 2.5c0 1.5 1 1.5 1 3M11 2.5c0 1.5 1 1.5 1 3"/></svg>';
+ICONS.stay = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 19V6M3 15h18v4M21 15v-3a3 3 0 0 0-3-3h-7v6"/><circle cx="7" cy="11" r="2"/></svg>';
 export function categoryIcon(typeId) {
   return ICONS[typeId] || ICONS[12];
 }
@@ -148,4 +149,19 @@ export const ICON = {
   map: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3Z"/><path d="M9 3v15M15 6v15"/></svg>',
   phone: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2Z"/></svg>',
   share: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>',
+};
+
+/** 받침에 맞는 조사: josa('맛집', '을', '를') → '맛집을', josa('카페', '을', '를') → '카페를' */
+export function josa(word, withBatchim, withoutBatchim) {
+  const code = String(word).trim().slice(-1).charCodeAt(0) - 0xac00;
+  const has = code >= 0 && code <= 11171 ? code % 28 !== 0 : false;
+  return `${word}${has ? withBatchim : withoutBatchim}`;
+}
+
+/** 맛집·숙소 탭의 종류별 문구 */
+export const FOOD_KIND = {
+  restaurant: { what: '맛집', sort: '맛집순', tasty: '맛집', icon: 'food', showAll: false },
+  cafe: { what: '추천 카페', sort: '추천순', tasty: '인기 카페', icon: 'cafe', showAll: false },
+  // 숙소는 카카오맵 평점이 적은 곳이 많아 기본으로 전부 보여 줌 (평점 순, 평점 없는 곳은 뒤)
+  stay: { what: '숙소', sort: '평점순', tasty: '인기 숙소', icon: 'stay', showAll: true },
 };

@@ -185,3 +185,40 @@ test('넓은 반경(10km)은 영역을 3×3 칸으로 나눠 찾고, 칸마다 1
   assert.deepEqual([...new Set(firstNine)], ['1']);
   assert.ok(Math.max(...places.map((p) => p.distanceM)) > 5000);
 });
+
+test('숙소: 카카오 숙박(AD5) 종류 나누기, 모텔도 포함', async () => {
+  const { stayInfo } = await import('../server/food/categories.js');
+  assert.equal(stayInfo('여행 > 숙박 > 호텔 > 특급호텔', '그랜드 호텔').label, '호텔');
+  assert.equal(stayInfo('여행 > 숙박 > 모텔', 'OO 호텔').label, '모텔'); // 이름에 호텔이 붙은 모텔은 카테고리 기준
+  assert.equal(stayInfo('여행 > 숙박 > 펜션', '바다펜션').label, '펜션·민박');
+  assert.equal(stayInfo('여행 > 숙박 > 게스트하우스', '한옥 게스트하우스').label, '한옥');
+  assert.equal(stayInfo('여행 > 숙박 > 콘도,리조트', '소노벨').label, '리조트·콘도');
+  assert.equal(stayInfo('여행 > 숙박', '별빛 글램핑').label, '캠핑·글램핑'); // 카테고리가 대략적이면 이름으로
+  assert.equal(stayInfo('여행 > 숙박', '무지개').label, '숙박');
+
+  const motel = toFoodPlace(doc(7, '역전 모텔', '여행 > 숙박 > 모텔', 'AD5'), 'stay', CENTER.lat, CENTER.lng);
+  assert.equal(motel.label, '모텔');
+  assert.equal(motel.kind, 'stay');
+  assert.equal(toFoodPlace(doc(8, '어떤 식당', '음식점 > 한식', 'FD6'), 'stay', CENTER.lat, CENTER.lng), null);
+
+  const demo = createDemoFoodService();
+  const res = await handleFoodRequest(demo, '/api/food', new URLSearchParams({ lat: '37.5', lng: '127', radius: '3000', kind: 'stay' }));
+  assert.equal(res.status, 200);
+  assert.ok(res.body.places.length > 0 && res.body.places.every((p) => p.kind === 'stay'));
+  assert.match(res.body.area, AREA_KEY_RE);
+});
+
+test('숙소 검색은 키워드 대신 숙박 카테고리를 정확도순으로', async () => {
+  const { createKakaoLocal } = await import('../server/food/kakao.js');
+  const paths = [];
+  const fetchImpl = async (url) => {
+    const u = new URL(url);
+    paths.push(`${u.pathname}?${u.searchParams.get('category_group_code')}:${u.searchParams.get('sort')}`);
+    return new Response(JSON.stringify({ documents: [doc(9, '테스트 호텔', '여행 > 숙박 > 호텔', 'AD5')], meta: { is_end: true } }));
+  };
+  const local = createKakaoLocal({ apiKey: 'k', fetchImpl, baseUrl: 'https://kakao.test' });
+  const places = await local.searchFood({ lat: CENTER.lat, lng: CENTER.lng, radiusM: 1300, kind: 'stay', grid: 2 });
+  assert.ok(paths.every((p) => p.startsWith('/v2/local/search/category.json?AD5')));
+  assert.ok(paths.some((p) => p.endsWith(':accuracy')) && paths.some((p) => p.endsWith(':distance')));
+  assert.equal(places[0].label, '호텔');
+});
