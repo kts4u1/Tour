@@ -153,22 +153,73 @@
     관광정보 제공: 한국관광공사 TourAPI · 지도: © OpenStreetMap 기여자
   </footer>
 
-  <dialog class="sheet" id="locationDialog" aria-labelledby="locationDialogTitle">
-    <div class="sheet-head">
-      <h2 id="locationDialogTitle">기준 위치</h2>
-      <button type="button" class="icon-button" data-close aria-label="닫기">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
-      </button>
+  <dialog class="sheet loc-sheet" id="locationDialog" aria-labelledby="locationDialogTitle" data-mode="change" data-status="idle">
+    <button type="button" class="icon-button floating-close loc-close" data-close aria-label="닫기">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+    <div class="loc-hero" aria-hidden="true">
+      <svg class="loc-art" viewBox="0 0 360 190" preserveAspectRatio="xMidYMid slice">
+        <g fill="none" stroke="#fff" stroke-linecap="round">
+          <path d="M-10 152C80 118 140 172 220 132S330 92 380 112" stroke-opacity=".10" stroke-width="16"/>
+          <path d="M44-10 112 200" stroke-opacity=".09" stroke-width="6"/>
+          <path d="M-10 58 380 28" stroke-opacity=".08" stroke-width="5"/>
+          <path d="M262-10 300 200" stroke-opacity=".08" stroke-width="5"/>
+          <path d="M-10 98H380M180-10V200" stroke-opacity=".05" stroke-width="2"/>
+          <path d="M0 176 360 160" stroke-opacity=".06" stroke-width="3"/>
+        </g>
+        <g fill="none" stroke="#fff" stroke-width="1.5">
+          <circle cx="180" cy="112" r="34" stroke-opacity=".5"/>
+          <circle cx="180" cy="112" r="64" stroke-opacity=".32" stroke-dasharray="4 5"/>
+          <circle cx="180" cy="112" r="96" stroke-opacity=".2" stroke-dasharray="2 6"/>
+        </g>
+        <circle class="pulse" cx="180" cy="112" r="96" fill="#5eead4" fill-opacity=".3"/>
+        <circle class="pulse p2" cx="180" cy="112" r="96" fill="#5eead4" fill-opacity=".3"/>
+        <ellipse class="pin-shadow" cx="180" cy="113" rx="12" ry="3.5" fill="#022c22" fill-opacity=".35"/>
+        <g class="pin">
+          <path d="M180 112s-22-20-22-37a22 22 0 0 1 44 0c0 17-22 37-22 37Z" fill="#fff"/>
+          <circle cx="180" cy="75" r="8.5" fill="#0f766e"/>
+        </g>
+      </svg>
+      <span class="loc-float f1">🎪</span>
+      <span class="loc-float f2">🏯</span>
+      <span class="loc-float f3">🍜</span>
+      <span class="loc-float f4">🏨</span>
+      <span class="loc-float f5">☕</span>
     </div>
-    <div class="sheet-body">
-      <button type="button" class="primary-button" id="useGpsButton">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/><circle cx="12" cy="12" r="7"/></svg>
-        현재 위치 사용
+    <div class="loc-body">
+      <h2 class="loc-title" id="locationDialogTitle" tabindex="-1" autofocus>기준 위치</h2>
+      <p class="loc-lead" id="locLead"></p>
+      <ul class="loc-perks">
+        <li><span class="perk-ic">🎯</span><span><b>반경 10~100km</b> 관광지·축제를 가까운 순으로</span></li>
+        <li><span class="perk-ic">🍜</span><span>근처 <b>맛집·카페·숙소</b>까지 한 번에</span></li>
+        <li><span class="perk-ic">🔒</span><span>위치는 <b>이 기기에만</b> 저장돼요</span></li>
+      </ul>
+      <button type="button" class="loc-gps" id="useGpsButton">
+        <span class="loc-gps-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 10.6 20 3.8l-6.8 16.5-2.1-7.6Z"/></svg></span>
+        <span class="spinner" aria-hidden="true"></span>
+        <span id="gpsLabel">현재 위치로 찾기</span>
       </button>
-      <p class="hint" id="gpsHint" role="status"></p>
-      <h3 class="sheet-subtitle">도시 선택</h3>
-      <div class="city-grid" id="cityGrid"></div>
-      <p class="hint">내 주변 › 지도 보기에서 지도를 눌러 원하는 곳을 기준으로 정할 수도 있어요.</p>
+      <p class="loc-ask" id="gpsAsk">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.5"/></svg>
+        <span>브라우저가 위치 사용을 물어보면 <b>허용</b>을 눌러 주세요</span>
+      </p>
+      <div class="loc-help" id="gpsHelp" hidden>
+        <h3>위치 권한 켜는 방법</h3>
+        <ol id="gpsHelpSteps"></ol>
+      </div>
+      <p class="loc-msg" id="gpsHint" role="status"></p>
+      <div class="loc-alt">
+        <button type="button" class="loc-toggle" id="toggleCities" aria-expanded="false" aria-controls="cityPanel">
+          도시 고르기
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <button type="button" class="loc-later" id="locLater">나중에 할게요</button>
+      </div>
+      <div class="loc-cities" id="cityPanel">
+        <h3 class="sheet-subtitle">도시로 정하기</h3>
+        <div class="city-grid" id="cityGrid"></div>
+        <p class="hint">내 주변 › 지도 보기에서 지도를 눌러 원하는 곳을 기준으로 정할 수도 있어요.</p>
+      </div>
     </div>
   </dialog>
 
@@ -178,6 +229,15 @@
     </button>
     <div id="detailBody"></div>
   </dialog>
+
+  <div class="loc-nudge" id="locNudge" role="status" hidden>
+    <span class="loc-nudge-dot" aria-hidden="true"></span>
+    <span class="loc-nudge-text" id="nudgeText"></span>
+    <button type="button" class="loc-nudge-go" id="nudgeGps">지금 위치로</button>
+    <button type="button" class="loc-nudge-close" id="nudgeClose" aria-label="닫기">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 </body>

@@ -117,14 +117,14 @@ export const storage = {
 };
 
 let toastTimer;
-export function toast(message) {
+export function toast(message, duration = 2600) {
   const el = document.getElementById('toast');
   el.textContent = message;
   el.hidden = false;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => {
     el.hidden = true;
-  }, 2600);
+  }, duration);
 }
 
 // 분류별 아이콘 (고정 SVG)
